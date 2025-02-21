@@ -31,14 +31,16 @@ slider_k = Slider(ax_k, 'K', 0, 50, valinit=0.5, valstep=0.01)
 
 # Add slider for animation speed
 ax_speed = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgray')
-slider_speed = Slider(ax_speed, 'Speed', 0.1, 50, valinit=1, valstep=0.1)
+slider_speed = Slider(ax_speed, 'Speed', 1, 50, valinit=1, valstep=1)
 
 def kuramoto_step(phases, K):
     """Compute the next phase for each oscillator."""
     global omega, dt, N
-    phase_diffs = np.subtract.outer(phases, phases)
-    coupling = np.sum(np.sin(phase_diffs), axis=1) / N
-    return phases + dt * (omega + K * coupling)
+    phase_diffs = -np.subtract.outer(phases, phases)
+    new_phases = phases
+    for i in range(len(phases)):
+        new_phases[i] += dt* (omega + np.sum(np.sin(phase_diffs)[i, :]) * K / N)
+    return new_phases
 
 def update(frame):
     """Update function for animation."""
