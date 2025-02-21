@@ -98,7 +98,7 @@ def random_attention(frame):
         phase_diffs = -np.subtract.outer(thetas, thetas)
         for i in range(len(thetas)):
             #Only sum those coordinates that are connected
-            thetas[i] += dt * (1/N) * np.sum(A[i,:] * np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
+            thetas[i] += dt * (1/N) * np.sum(A[i, :] * np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
         return thetas
     return generic_update(frame, step)
 

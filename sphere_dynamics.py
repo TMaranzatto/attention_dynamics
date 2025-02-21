@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, Button
+from functools import partial
 
 #some helper functions for projections etc.
 def cartesian_to_spherical(x, y, z):
@@ -17,6 +18,11 @@ def spherical_to_cartesian(phi, theta):
         np.sin(theta) * np.sin(phi),  # y-coordinates
         np.cos(theta)                 # z-coordinates
     )).T
+
+def random_angles(N):
+    phi = np.random.uniform(0, 2 * np.pi, N)  # Azimuthal angle
+    theta = np.arccos(np.random.uniform(-1, 1, N))  # Polar angle
+    return phi, theta
 
 
 '''(Jake) Boiler plate code to create the figure.  Need to package this
@@ -40,16 +46,13 @@ ax.xaxis.line.set_visible(False)
 ax.yaxis.line.set_visible(False)
 ax.zaxis.line.set_visible(False)
 
-
 '''(Jake) Set N points randomly on the sphere'''
 N = 20  # Number of oscillators
 # Generate random angles for spherical coordinates
-phi = np.random.uniform(0, 2 * np.pi, N)  # Azimuthal angle
-theta = np.arccos(np.random.uniform(-1, 1, N))  # Polar angle
+phi, theta = random_angles(N)
 
 # Convert spherical coordinates to Cartesian coordinates
 positions = spherical_to_cartesian(phi, theta)
-test = cartesian_to_spherical(*positions.T)
 # Scatter plot of points on the sphere
 points = ax.scatter(*positions.T, c='b', s=50)
 
@@ -66,6 +69,15 @@ ax.plot_wireframe(
 ax_speed = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgray')
 slider_speed = Slider(ax_speed, 'Speed', 1, 50, valinit=1, valstep=1)
 
+def restart(event):
+    global positions
+    positions = spherical_to_cartesian(*random_angles(N))
+
+# Add restart button
+restart_ax = plt.axes([0.8, 0.05, 0.1, 0.04])
+restart_button = Button(restart_ax, 'Restart')
+restart_button.on_clicked(restart)
+
 '''(Jake) This function takes as input the frame, and an arbitrary 
 function that takes as input N points on the sphere and returns their
  positions (NOTE: NOT THEIR STEP dx!!).  This should 
@@ -81,13 +93,12 @@ def generic_update(frame, func):
 
 # Example function for animation with random updates
 def random_update(frame):
+    dx = 0.01
     def random_step(pos):
         #there has to be a better way of doing this...
         coords = np.transpose(cartesian_to_spherical(*pos.T))
         pphi = coords[0]
         ttheta = coords[1]
-
-        dx = .05
         # Small random perturbations in spherical coordinates
         dphi = np.random.uniform(-dx, dx, N)
         dtheta = np.random.uniform(-dx, dx, N)
@@ -103,8 +114,35 @@ def random_update(frame):
         return np.vstack((new_pos_x, new_pos_y, new_pos_z)).T
     return generic_update(frame, func=random_step)
 
+ax_beta = plt.axes([0.2, 0.1, 0.65, 0.03], facecolor='blue')
+slider_beta = Slider(ax_beta, 'Beta', 0, 5, valinit=1, valstep=.01)
+#attention dynamics but normalized by 1/N.
+def static_attention_3D(frame, Q, K, V):
+    dx = 0.01
+    assert(Q.shape == K.shape == V.shape == (3,3))
+
+    def step(pos):
+        beta = slider_beta.val
+        Q_pos = pos @ Q.T  # Shape: (N, 3)
+        K_pos = pos @ K.T  # Shape: (N, 3)
+        # Compute exponent matrix (N, N)
+        exponent_matrix = beta * np.dot(Q_pos, K_pos.T)
+        # Compute A and normalize each row
+        Attn = np.exp(exponent_matrix)
+        Attn /= Attn.sum(axis=1, keepdims=True)
+
+        deltas = np.zeros(pos.shape)
+        for i in range(N):
+            temp = dx * np.sum(Attn[i, :][:, np.newaxis] * (V @ pos.T).T, axis=0)
+            deltas[i] = temp - np.dot(pos[i], temp)*pos[i]
+        pos += deltas
+        return pos
+    return generic_update(frame, func=step)
+
+
+
 # Set up the animation, put your update rule as second argument
-ani = animation.FuncAnimation(fig, random_update, frames=200, interval=50, blit=False)
+ani = animation.FuncAnimation(fig, partial(static_attention_3D, Q = np.identity(3), K =  np.identity(3), V = np.identity(3)), frames=200, interval=50, blit=False)
 
 # Display the plot
 plt.show()
