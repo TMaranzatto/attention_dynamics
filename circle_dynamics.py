@@ -105,7 +105,7 @@ def random_attention(frame):
 
 # Create real-time animation
 # Put your desired update function as the second argument
-ani = animation.FuncAnimation(fig, random_attention, frames=None, interval=50, blit=True, cache_frame_data=False)
+ani = animation.FuncAnimation(fig, two_dimensional_attention, frames=None, interval=50, blit=True, cache_frame_data=False)
 #display the animation
 plt.show()
 
