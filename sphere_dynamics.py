@@ -149,16 +149,16 @@ def static_attention_3D(frame, Q, K, V):
 #value to test step function with random input matrices
 def generate_cluster_plot(beta_values, N_values, trials=5, T=1000):
     cluster_counts = np.zeros((len(N_values), len(beta_values)))
-    for i, N in enumerate(N_values):
+    Q = np.random.rand(3, 3)
+    K = np.random.rand(3, 3)
+    V = np.random.rand(3, 3)
+    for i, n in enumerate(N_values):
         for j, beta in enumerate(beta_values):
             count = 0
             for _ in range(trials):
-                pos = spherical_to_cartesian(*random_angles(N))
-                Q = np.random.rand(3, 3)
-                K = np.random.rand(3, 3)
-                V = np.random.rand(3, 3)
+                pos = spherical_to_cartesian(*random_angles(n))
                 for _ in range(T):
-                    pos = step(pos,Q,K,V, beta)
+                    pos = step(pos, Q, K, V, beta)
                 _, labels = estimate_clusters(pos)
                 count += len(labels)
             cluster_counts[i, j] = count / trials
@@ -175,7 +175,7 @@ def generate_cluster_plot(beta_values, N_values, trials=5, T=1000):
 if __name__ == "__main__":
     betas = [0.01*i for i in range(100)]
     Ns = [i for i in range(5,50)]
-    generate_cluster_plot(betas, Ns, trials=20, T=1000)
+    generate_cluster_plot(betas, Ns, trials=5, T=5000)
 ''' Below is the interactive visualization code.  Commented out for now but works.
     q = np.random.rand(3, 3)
     k = np.random.rand(3, 3)
