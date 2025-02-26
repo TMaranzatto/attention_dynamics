@@ -59,7 +59,7 @@ ax.yaxis.line.set_visible(False)
 ax.zaxis.line.set_visible(False)
 
 '''(Jake) Set N points randomly on the sphere'''
-N = 50  # Number of oscillators
+N = 100  # Number of oscillators
 # Generate random angles for spherical coordinates
 phi, theta = random_angles(N)
 
@@ -124,7 +124,7 @@ def generic_update(frame, func):
 ax_beta = plt.axes([0.2, 0.1, 0.65, 0.03], facecolor='blue')
 slider_beta = Slider(ax_beta, 'Beta', 0, 10 , valinit=1, valstep=.01)
 #attention dynamics with only Q,K,V matricies  that dont change over time
-def step(pos, Q, K, V, beta):
+def step_static(pos, Q, K, V, beta):
     dx = 0.01
     Q_pos = pos @ Q.T  # Shape: (N, 3)
     K_pos = pos @ K.T  # Shape: (N, 3)
@@ -133,7 +133,6 @@ def step(pos, Q, K, V, beta):
     # Compute A and normalize each row
     Attn = np.exp(exponent_matrix)
     Attn /= Attn.sum(axis=1, keepdims=True)
-
     deltas = np.zeros(pos.shape)
     for i in range(len(deltas)):
         temp = dx * np.sum(Attn[i, :][:, np.newaxis] * (V @ pos.T).T, axis=0)
@@ -144,10 +143,37 @@ def step(pos, Q, K, V, beta):
 def static_attention_3D(frame, Q, K, V):
     beta = slider_beta.val
     assert(Q.shape == K.shape == V.shape == (3,3))
-    return generic_update(frame, func=partial(step, Q=Q, K=K, V=V, beta=beta))
+    return generic_update(frame, func=partial(step_static, Q=Q, K=K, V=V, beta=beta))
+
+def step_feedforward(pos, Q, K, V, w, sigma, a, b, beta):
+    #w, sigma, a, b for feed forward layer
+    #w, a are dxd matrices, b is a vector in R^d
+    #sigma is lipshitz function that should apply element-wise
+    #eg. def f(x): return x+5; sigma = np.vectorize(f)
+    #alternatively for a one-liner, sigma = np.vectorize(lambda x: x)
+    dx = 0.01
+    Q_pos = pos @ Q.T  # Shape: (N, 3)
+    K_pos = pos @ K.T  # Shape: (N, 3)
+    # Compute exponent matrix (N, N)
+    exponent_matrix = beta * np.dot(Q_pos, K_pos.T)
+    # Compute A and normalize each row
+    Attn = np.exp(exponent_matrix)
+    Attn /= Attn.sum(axis=1, keepdims=True)
+    deltas = np.zeros(pos.shape)
+    feedforward = (sigma(pos @ a.T)) @ w.T + b
+    for i in range(len(deltas)):
+        temp = dx * (np.sum(Attn[i, :][:, np.newaxis] * pos @ V.T, axis=0) + feedforward[i])
+        deltas[i] = temp - np.dot(pos[i], temp) * pos[i]
+    pos += deltas
+    return pos
+#the wrapper function to apply step in the animation
+def feedforward_attention_3D(frame, Q, K, V, w, sigma, a, b):
+    beta = slider_beta.val
+    assert(Q.shape == K.shape == V.shape == (3,3))
+    return generic_update(frame, func=partial(step_feedforward, Q=Q, K=K, V=V, w=w, sigma=sigma, a=a, b=b, beta=beta))
 
 #value to test step function with random input matrices
-def generate_cluster_plot(beta_values, N_values, trials=5, T=1000):
+def generate_cluster_plot(beta_values, step,  N_values, trials=5, T=1000):
     cluster_counts = np.zeros((len(N_values), len(beta_values)))
     Q = np.random.rand(3, 3)
     K = np.random.rand(3, 3)
@@ -173,17 +199,21 @@ def generate_cluster_plot(beta_values, N_values, trials=5, T=1000):
     plt.show()
 
 if __name__ == "__main__":
-    betas = [0.01*i for i in range(100)]
-    Ns = [i for i in range(5,50)]
-    generate_cluster_plot(betas, Ns, trials=5, T=5000)
-''' Below is the interactive visualization code.  Commented out for now but works.
-    q = np.random.rand(3, 3)
-    k = np.random.rand(3, 3)
-    v = np.random.rand(3, 3)
+    #betas = [0.01*i for i in range(100)]
+    #Ns = [i for i in range(5,50)]
+    #generate_cluster_plot(betas, step= ..., Ns, trials=5, T=5000)
+# Below is the interactive visualization code.  Commented out for now but works.
+    q = np.diag([1,1,1])
+    k = np.diag([1,1,1])
+    v = np.diag([1,1,0])
+    sigma_identity = np.vectorize(lambda x: x)
+    w = np.identity(3)
+    a = np.identity(3)
+    b = np.zeros(3)
     # Set up the animation, put your update rule as second argument
-    ani = animation.FuncAnimation(fig, partial(static_attention_3D, Q=q, K=k, V=v), interval=50, blit=False)
+    ani = animation.FuncAnimation(fig, partial(feedforward_attention_3D, Q=q, K=k, V=v, w=w, sigma=sigma_identity, a=a, b=b), interval=50, blit=False)
 
     # Display the plot
     plt.show()
-'''
+
 

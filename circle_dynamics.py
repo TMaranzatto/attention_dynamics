@@ -86,7 +86,7 @@ def two_dimensional_attention(frame):
 
 #recall that p = logn / n is the (sharp) threshold for connectivity in G(n,p)
 #and connectivity is a necessary condition for clustering to a single point
-p = (2)*log(N)/N
+p = (1.1)*log(N)/N
 A = to_numpy_array(erdos_renyi_graph(N, p))
 def random_attention(frame):
     def step(thetas):
@@ -105,7 +105,7 @@ def random_attention(frame):
 
 # Create real-time animation
 # Put your desired update function as the second argument
-ani = animation.FuncAnimation(fig, two_dimensional_attention, frames=None, interval=50, blit=True, cache_frame_data=False)
+ani = animation.FuncAnimation(fig, random_attention, frames=None, interval=50, blit=True, cache_frame_data=False)
 #display the animation
 plt.show()
 
