@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider, Button
 from math import log
-from networkx import erdos_renyi_graph, to_numpy_array
+from networkx import erdos_renyi_graph, to_numpy_array, stochastic_block_model, draw
 
 ''' (Jake) Everything until the first function is boiler plate code
 for setting up the visualization.  I've made the code extendable
@@ -18,10 +18,10 @@ ax.set_ylim(-1.2, 1.2)
 ax.set_aspect('equal')
 ax.axis('off')
 
-N = 20  # Number of points
+N = 50  # Number of points
 phases = np.random.uniform(0, 2 * np.pi, N) # Initial random phases of points
 # Plot points on a unit circle
-points, = plt.plot(np.cos(phases), np.sin(phases), 'bo', markersize=8)
+points, = plt.plot(np.cos(phases), np.sin(phases), 'bo')
 circle = plt.Circle((0, 0), 1, color='black', fill=False)
 ax.add_patch(circle)
 
@@ -87,7 +87,11 @@ def two_dimensional_attention(frame):
 #recall that p = logn / n is the (sharp) threshold for connectivity in G(n,p)
 #and connectivity is a necessary condition for clustering to a single point
 p = (1.1)*log(N)/N
-A = to_numpy_array(erdos_renyi_graph(N, p))
+#A = to_numpy_array(erdos_renyi_graph(N, 1/2))
+nodes = [25,25]
+probs = [[0.8,0.1],[0.1,0.8]]
+G = stochastic_block_model(nodes, probs)
+A = to_numpy_array(G)
 def random_attention(frame):
     def step(thetas):
         # Set the model parameters

@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -7,6 +8,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import pdist, squareform
 from collections import defaultdict
 import sys
+from networkx import erdos_renyi_graph, to_numpy_array, stochastic_block_model, draw
 
 #some helper functions for projections etc.
 def cartesian_to_spherical(x, y, z):
@@ -59,9 +61,11 @@ ax.yaxis.line.set_visible(False)
 ax.zaxis.line.set_visible(False)
 
 '''(Jake) Set N points randomly on the sphere'''
-N = 100  # Number of oscillators
+N = 50 # Number of oscillators
 # Generate random angles for spherical coordinates
 phi, theta = random_angles(N)
+#set this to True if testing the stochastic block model
+StochasticBM_Test = True
 
 # Convert spherical coordinates to Cartesian coordinates
 positions = spherical_to_cartesian(phi, theta)
@@ -69,15 +73,20 @@ cluster_labels, cluster_sizes = estimate_clusters(positions)
 cluster_color_map = {}
 colors = np.zeros((N, 3))
 
-def assign_colors(cluster_labels, cluster_sizes):
-    unique_clusters = set(cluster_labels)
-    sorted_clusters = sorted(unique_clusters, key=lambda c: -cluster_sizes[c])
-    cmap = plt.cm.jet(np.linspace(0, 1, len(unique_clusters)))
-    for i, cluster in enumerate(sorted_clusters):
-        cluster_color_map[cluster] = cmap[i]
-    return np.array([cluster_color_map[label] for label in cluster_labels])
+#set isCluster to True if testing for community clustering in Stochastic Block Model
+def assign_colors(cluster_labels, cluster_sizes, isCluster = False):
+    if not isCluster:
+        unique_clusters = set(cluster_labels)
+        sorted_clusters = sorted(unique_clusters, key=lambda c: -cluster_sizes[c])
+        cmap = plt.cm.jet(np.linspace(0, 1, len(unique_clusters)))
+        for i, cluster in enumerate(sorted_clusters):
+            cluster_color_map[cluster] = cmap[i]
+        return np.array([cluster_color_map[label] for label in cluster_labels])
+    else:
+        return np.array([(1,0,0,.5) for _ in range(N//2)] + [(0,1,0,.5) for _ in range(N//2)])
 
-colors = assign_colors(cluster_labels, cluster_sizes)
+
+colors = assign_colors(cluster_labels, cluster_sizes, isCluster=StochasticBM_Test)
 
 # Scatter plot of points on the sphere
 points = ax.scatter(*positions.T, c=colors, s=50)
@@ -99,7 +108,7 @@ def restart(event):
     global positions, cluster_labels, cluster_sizes, colors
     positions = spherical_to_cartesian(*random_angles(N))
     cluster_labels, cluster_sizes = estimate_clusters(positions)
-    colors = assign_colors(cluster_labels, cluster_sizes)
+    colors = assign_colors(cluster_labels, cluster_sizes, isCluster=StochasticBM_Test)
     points.set_color(colors)
 
 restart_ax = plt.axes([0.8, 0.05, 0.1, 0.04])
@@ -117,7 +126,7 @@ def generic_update(frame, func):
     for _ in range(int(speed)):
         positions = func(positions)
     cluster_labels, cluster_sizes = estimate_clusters(positions)
-    colors = assign_colors(cluster_labels, cluster_sizes)
+    colors = assign_colors(cluster_labels, cluster_sizes, isCluster=StochasticBM_Test)
     points.set_color(colors)
     points._offsets3d = positions.T
 
@@ -143,22 +152,29 @@ def step_static(pos, Q, K, V, beta):
 def static_attention_3D(frame, Q, K, V):
     beta = slider_beta.val
     assert(Q.shape == K.shape == V.shape == (3,3))
-    return generic_update(frame, func=partial(step_static, Q=Q, K=K, V=V, beta=beta))
+    return generic_update(frame, func=partial(step_static, Q=Q, K=K, V=V, A=A, beta=beta))
 
-def step_feedforward(pos, Q, K, V, w, sigma, a, b, beta):
+def step_feedforward(pos, Q, K, V, A, w, sigma, a, b, beta):
     #w, sigma, a, b for feed forward layer
     #w, a are dxd matrices, b is a vector in R^d
     #sigma is lipshitz function that should apply element-wise
+    #A is a connection matrix for an underlying graph
     #eg. def f(x): return x+5; sigma = np.vectorize(f)
     #alternatively for a one-liner, sigma = np.vectorize(lambda x: x)
+
+    #run (normalized) self attention dynamics iff A is identity
+    SA = (np.all(A == np.identity(N)))
     dx = 0.01
     Q_pos = pos @ Q.T  # Shape: (N, 3)
     K_pos = pos @ K.T  # Shape: (N, 3)
     # Compute exponent matrix (N, N)
-    exponent_matrix = beta * np.dot(Q_pos, K_pos.T)
+    exponent_matrix = (beta * np.dot(Q_pos, K_pos.T))
     # Compute A and normalize each row
-    Attn = np.exp(exponent_matrix)
-    Attn /= Attn.sum(axis=1, keepdims=True)
+    Attn = A @ np.exp(exponent_matrix).T
+    if SA:
+        Attn /= Attn.sum(axis=1, keepdims=True)
+    else:
+        Attn /= (N * math.exp(beta))
     deltas = np.zeros(pos.shape)
     feedforward = (sigma(pos @ a.T)) @ w.T + b
     for i in range(len(deltas)):
@@ -167,10 +183,10 @@ def step_feedforward(pos, Q, K, V, w, sigma, a, b, beta):
     pos += deltas
     return pos
 #the wrapper function to apply step in the animation
-def feedforward_attention_3D(frame, Q, K, V, w, sigma, a, b):
+def feedforward_attention_3D(frame, Q, K, V, A, w, sigma, a, b, SA = True):
     beta = slider_beta.val
     assert(Q.shape == K.shape == V.shape == (3,3))
-    return generic_update(frame, func=partial(step_feedforward, Q=Q, K=K, V=V, w=w, sigma=sigma, a=a, b=b, beta=beta))
+    return generic_update(frame, func=partial(step_feedforward, Q=Q, K=K, V=V, A=A, w=w, sigma=sigma, a=a, b=b, beta=beta))
 
 #value to test step function with random input matrices
 def generate_cluster_plot(beta_values, step,  N_values, trials=5, T=1000):
@@ -199,19 +215,26 @@ def generate_cluster_plot(beta_values, step,  N_values, trials=5, T=1000):
     plt.show()
 
 if __name__ == "__main__":
+    # Commented out is the test for plotting beta vs N for a random matrix V
     #betas = [0.01*i for i in range(100)]
     #Ns = [i for i in range(5,50)]
     #generate_cluster_plot(betas, step= ..., Ns, trials=5, T=5000)
-# Below is the interactive visualization code.  Commented out for now but works.
+    # Below is the interactive visualization code.
     q = np.diag([1,1,1])
     k = np.diag([1,1,1])
-    v = np.diag([1,1,0])
+    v = np.diag([1,1,1])
     sigma_identity = np.vectorize(lambda x: x)
     w = np.identity(3)
     a = np.identity(3)
     b = np.zeros(3)
+
+    nodes = [25, 25]
+    p = .6
+    probs = [[p, 1-p], [1-p, p]]
+    G = stochastic_block_model(nodes, probs)
+    A = 2 * to_numpy_array(G) - np.ones((N,N))
     # Set up the animation, put your update rule as second argument
-    ani = animation.FuncAnimation(fig, partial(feedforward_attention_3D, Q=q, K=k, V=v, w=w, sigma=sigma_identity, a=a, b=b), interval=50, blit=False)
+    ani = animation.FuncAnimation(fig, partial(feedforward_attention_3D, Q=q, K=k, V=v, A=A, w=w, sigma=sigma_identity, a=a, b=b), interval=50, blit=False)
 
     # Display the plot
     plt.show()
