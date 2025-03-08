@@ -61,7 +61,7 @@ ax.yaxis.line.set_visible(False)
 ax.zaxis.line.set_visible(False)
 
 '''(Jake) Set N points randomly on the sphere'''
-N = 50 # Number of oscillators
+N = 100 # Number of oscillators
 # Generate random angles for spherical coordinates
 phi, theta = random_angles(N)
 #set this to True if testing the stochastic block model
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     a = np.identity(3)
     b = np.zeros(3)
 
-    nodes = [25, 25]
+    nodes = [N//2, N//2]
     p = .6
     probs = [[p, 1-p], [1-p, p]]
     G = stochastic_block_model(nodes, probs)
