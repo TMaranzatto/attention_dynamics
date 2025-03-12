@@ -61,7 +61,7 @@ ax.yaxis.line.set_visible(False)
 ax.zaxis.line.set_visible(False)
 
 '''(Jake) Set N points randomly on the sphere'''
-N = 100 # Number of oscillators
+N = 200 # Number of oscillators
 # Generate random angles for spherical coordinates
 phi, theta = random_angles(N)
 #set this to True if testing the stochastic block model
@@ -148,6 +148,7 @@ def step_static(pos, Q, K, V, beta):
         deltas[i] = temp - np.dot(pos[i], temp) * pos[i]
     pos += deltas
     return pos
+
 #the wrapper function to apply step in the animation
 def static_attention_3D(frame, Q, K, V):
     beta = slider_beta.val
@@ -157,10 +158,10 @@ def static_attention_3D(frame, Q, K, V):
 def step_feedforward(pos, Q, K, V, A, w, sigma, a, b, beta):
     #w, sigma, a, b for feed forward layer
     #w, a are dxd matrices, b is a vector in R^d
-    #sigma is lipshitz function that should apply element-wise
+    #sigma is Lipschitz function that should apply element-wise
     #A is a connection matrix for an underlying graph
     #eg. def f(x): return x+5; sigma = np.vectorize(f)
-    #alternatively for a one-liner, sigma = np.vectorize(lambda x: x)
+    #alternatively for a one-liner, sigma = np.vectorize(lambda x: x + 5)
 
     #run (normalized) self attention dynamics iff A is identity
     SA = (np.all(A == np.identity(N)))
@@ -174,7 +175,7 @@ def step_feedforward(pos, Q, K, V, A, w, sigma, a, b, beta):
     if SA:
         Attn /= Attn.sum(axis=1, keepdims=True)
     else:
-        Attn /= (N * math.exp(beta))
+        Attn /= (N * beta * math.exp(beta))
     deltas = np.zeros(pos.shape)
     feedforward = (sigma(pos @ a.T)) @ w.T + b
     for i in range(len(deltas)):
@@ -183,7 +184,7 @@ def step_feedforward(pos, Q, K, V, A, w, sigma, a, b, beta):
     pos += deltas
     return pos
 #the wrapper function to apply step in the animation
-def feedforward_attention_3D(frame, Q, K, V, A, w, sigma, a, b, SA = True):
+def feedforward_attention_3D(frame, Q, K, V, A, w, sigma, a, b):
     beta = slider_beta.val
     assert(Q.shape == K.shape == V.shape == (3,3))
     return generic_update(frame, func=partial(step_feedforward, Q=Q, K=K, V=V, A=A, w=w, sigma=sigma, a=a, b=b, beta=beta))
@@ -214,6 +215,35 @@ def generate_cluster_plot(beta_values, step,  N_values, trials=5, T=1000):
     fig.colorbar(c, ax=ax, label="Average Cluster Count")
     plt.show()
 
+'''
+def step_higher_order(pos, dim, beta):
+    def nd_id(n, d):
+        out = np.zeros((n,) * d)
+        out[tuple([np.arange(n)] * d)] = 1
+        return out
+    tensor = nd_id(3, dim)
+    dx = 0.01
+    Q_pos = pos @ tensor.T
+    K_pos = pos @ tensor.T
+    print(K_pos.shape)
+    # Compute exponent matrix (N, N)
+    exponent_matrix = beta * np.dot(Q_pos, K_pos.T)
+    # Compute A and normalize each row
+    Attn = np.exp(exponent_matrix)
+    Attn /= Attn.sum(axis=1, keepdims=True)
+    deltas = np.zeros(pos.shape)
+    for i in range(len(deltas)):
+        temp = dx * np.sum(Attn[i, :][:, np.newaxis] * (tensor @ pos.T).T, axis=0)
+        deltas[i] = temp - np.dot(pos[i], temp) * pos[i]
+    pos += deltas
+    return pos
+
+step_higher_order(positions, 3, 1)
+def higher_order_attention(frame, dim):
+    beta = slider_beta.val
+    return generic_update(frame, func=partial(step_higher_order, dim=dim, beta=beta))
+'''
+
 if __name__ == "__main__":
     # Commented out is the test for plotting beta vs N for a random matrix V
     #betas = [0.01*i for i in range(100)]
@@ -229,10 +259,11 @@ if __name__ == "__main__":
     b = np.zeros(3)
 
     nodes = [N//2, N//2]
-    p = .6
+    p = 0.7
     probs = [[p, 1-p], [1-p, p]]
     G = stochastic_block_model(nodes, probs)
-    A = 2 * to_numpy_array(G) - np.ones((N,N))
+    A = 2 * to_numpy_array(G) - np.ones((N,N)) - np.identity(N)
+    print(A)
     # Set up the animation, put your update rule as second argument
     ani = animation.FuncAnimation(fig, partial(feedforward_attention_3D, Q=q, K=k, V=v, A=A, w=w, sigma=sigma_identity, a=a, b=b), interval=50, blit=False)
 

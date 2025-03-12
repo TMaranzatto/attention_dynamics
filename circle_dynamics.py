@@ -77,11 +77,28 @@ def two_dimensional_attention(frame):
         beta = slider_beta.val
         #smaller dt for more stability
         dt = 0.01
-        phase_diffs = -np.subtract.outer(thetas, thetas)
+        i, j = np.meshgrid(np.arange(N), np.arange(N), indexing='i')
+        phase_diffs = thetas[i] - thetas[j]
+        temp = np.zeros(len(thetas))
         for i in range(len(thetas)):
             #using the fact that sin(y-x) = -sin(x-y)
-            thetas[i] += dt * (1/N) * np.sum(np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
-        return thetas
+            temp[i] += dt * (1/N) * np.sum(np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
+        return thetas + temp
+    return generic_update(frame, step)
+
+def triple_attention(frame):
+    def step(thetas):
+        # Set the model parameters
+        beta = slider_beta.val
+        #smaller dt for more stability
+        dt = 0.01
+        i, j, k = np.meshgrid(np.arange(N), np.arange(N), np.arange(N), indexing='ij')
+        phase_diffs = 2* thetas[i] - thetas[j] - thetas[k]
+        temp = np.zeros(len(thetas))
+        for i in range(len(thetas)):
+            #using the fact that sin(y-x) = -sin(x-y)
+            temp[i] -= dt * (1/N) * np.sum(np.exp(beta * np.cos(phase_diffs)[i,:,:]) * np.sin(phase_diffs)[i,:,:])
+        return thetas + temp
     return generic_update(frame, step)
 
 #recall that p = logn / n is the (sharp) threshold for connectivity in G(n,p)
@@ -89,9 +106,9 @@ def two_dimensional_attention(frame):
 p = (1.1)*log(N)/N
 #A = to_numpy_array(erdos_renyi_graph(N, 1/2))
 nodes = [25,25]
-probs = [[0.8,0.1],[0.1,0.8]]
+probs = [[p,1-p],[1-p,p]]
 G = stochastic_block_model(nodes, probs)
-A = to_numpy_array(G)
+A = 2* to_numpy_array(G) - np.ones((N,N))
 def random_attention(frame):
     def step(thetas):
         # Set the model parameters
@@ -100,16 +117,17 @@ def random_attention(frame):
         dt = 0.01
         #Set up random matrix
         phase_diffs = -np.subtract.outer(thetas, thetas)
+        temp = np.zeros(len(thetas))
         for i in range(len(thetas)):
             #Only sum those coordinates that are connected
-            thetas[i] += dt * (1/N) * np.sum(A[i, :] * np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
-        return thetas
+            temp[i] += dt * (1/N) * np.sum(A[i, :] * np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
+        return thetas + temp
     return generic_update(frame, step)
 
 
 # Create real-time animation
 # Put your desired update function as the second argument
-ani = animation.FuncAnimation(fig, random_attention, frames=None, interval=50, blit=True, cache_frame_data=False)
+ani = animation.FuncAnimation(fig, triple_attention, frames=None, interval=50, blit=True, cache_frame_data=False)
 #display the animation
 plt.show()
 
