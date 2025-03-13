@@ -32,7 +32,7 @@ slider_speed = Slider(ax_speed, 'Speed', 1, 50, valinit=1, valstep=1)
 
 def restart(event):
     global phases
-    phases = phases = np.array([0,0, pi/2, pi])
+    phases = phases = np.array([0,0, pi/2, pi])#np.random.uniform(0, 2 * np.pi, N) # Initial random phases of points
 
 # Add restart button
 restart_ax = plt.axes([0.8, 0.05, 0.1, 0.04])
