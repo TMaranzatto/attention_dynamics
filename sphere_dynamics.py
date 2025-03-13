@@ -215,34 +215,6 @@ def generate_cluster_plot(beta_values, step,  N_values, trials=5, T=1000):
     fig.colorbar(c, ax=ax, label="Average Cluster Count")
     plt.show()
 
-'''
-def step_higher_order(pos, dim, beta):
-    def nd_id(n, d):
-        out = np.zeros((n,) * d)
-        out[tuple([np.arange(n)] * d)] = 1
-        return out
-    tensor = nd_id(3, dim)
-    dx = 0.01
-    Q_pos = pos @ tensor.T
-    K_pos = pos @ tensor.T
-    print(K_pos.shape)
-    # Compute exponent matrix (N, N)
-    exponent_matrix = beta * np.dot(Q_pos, K_pos.T)
-    # Compute A and normalize each row
-    Attn = np.exp(exponent_matrix)
-    Attn /= Attn.sum(axis=1, keepdims=True)
-    deltas = np.zeros(pos.shape)
-    for i in range(len(deltas)):
-        temp = dx * np.sum(Attn[i, :][:, np.newaxis] * (tensor @ pos.T).T, axis=0)
-        deltas[i] = temp - np.dot(pos[i], temp) * pos[i]
-    pos += deltas
-    return pos
-
-step_higher_order(positions, 3, 1)
-def higher_order_attention(frame, dim):
-    beta = slider_beta.val
-    return generic_update(frame, func=partial(step_higher_order, dim=dim, beta=beta))
-'''
 
 if __name__ == "__main__":
     # Commented out is the test for plotting beta vs N for a random matrix V
@@ -259,11 +231,10 @@ if __name__ == "__main__":
     b = np.zeros(3)
 
     nodes = [N//2, N//2]
-    p = 0.7
+    p = 0.6
     probs = [[p, 1-p], [1-p, p]]
     G = stochastic_block_model(nodes, probs)
-    A = 2 * to_numpy_array(G) - np.ones((N,N)) - np.identity(N)
-    print(A)
+    A = 2*to_numpy_array(G) - np.ones((N,N)) - np.identity(N)
     # Set up the animation, put your update rule as second argument
     ani = animation.FuncAnimation(fig, partial(feedforward_attention_3D, Q=q, K=k, V=v, A=A, w=w, sigma=sigma_identity, a=a, b=b), interval=50, blit=False)
 

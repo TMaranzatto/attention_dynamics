@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider, Button
-from math import log
+from math import log, floor, ceil, pi
 from networkx import erdos_renyi_graph, to_numpy_array, stochastic_block_model, draw
 
 ''' (Jake) Everything until the first function is boiler plate code
@@ -18,8 +18,8 @@ ax.set_ylim(-1.2, 1.2)
 ax.set_aspect('equal')
 ax.axis('off')
 
-N = 50  # Number of points
-phases = np.random.uniform(0, 2 * np.pi, N) # Initial random phases of points
+N = 4  # Number of points
+phases = np.array([0,0, pi/2, pi])#np.random.uniform(0, 2 * np.pi, N) # Initial random phases of points
 # Plot points on a unit circle
 points, = plt.plot(np.cos(phases), np.sin(phases), 'bo')
 circle = plt.Circle((0, 0), 1, color='black', fill=False)
@@ -32,7 +32,7 @@ slider_speed = Slider(ax_speed, 'Speed', 1, 50, valinit=1, valstep=1)
 
 def restart(event):
     global phases
-    phases = np.random.uniform(0, 2 * np.pi, N)
+    phases = phases = np.array([0,0, pi/2, pi])
 
 # Add restart button
 restart_ax = plt.axes([0.8, 0.05, 0.1, 0.04])
@@ -70,34 +70,34 @@ def kuramoto_update(frame):
     return generic_update(frame, func=kuramoto_step)
 
 ax_beta = plt.axes([0.2, 0.1, 0.65, 0.03], facecolor='blue')
-slider_beta = Slider(ax_beta, 'Beta', 0, 5, valinit=1, valstep=.01)
+slider_beta = Slider(ax_beta, 'Beta', 1.5, 2, valinit=1, valstep=.001)
 def two_dimensional_attention(frame):
     def step(thetas):
         # Set the model parameters
         beta = slider_beta.val
         #smaller dt for more stability
         dt = 0.01
-        i, j = np.meshgrid(np.arange(N), np.arange(N), indexing='i')
+        i, j = np.meshgrid(np.arange(N), np.arange(N), indexing='ij')
         phase_diffs = thetas[i] - thetas[j]
         temp = np.zeros(len(thetas))
         for i in range(len(thetas)):
             #using the fact that sin(y-x) = -sin(x-y)
-            temp[i] += dt * (1/N) * np.sum(np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
+            temp[i] -= dt * (1/N) * np.sum(np.exp(beta * np.cos(-phase_diffs)[i, :]) * np.sin(phase_diffs)[i, :])
         return thetas + temp
     return generic_update(frame, step)
 
 def triple_attention(frame):
     def step(thetas):
         # Set the model parameters
-        beta = slider_beta.val
+        beta = 1.9302472239107409
         #smaller dt for more stability
         dt = 0.01
         i, j, k = np.meshgrid(np.arange(N), np.arange(N), np.arange(N), indexing='ij')
-        phase_diffs = 2* thetas[i] - thetas[j] - thetas[k]
+        phase_diffs = 2 * thetas[i] - thetas[j] - thetas[k]
         temp = np.zeros(len(thetas))
-        for i in range(len(thetas)):
-            #using the fact that sin(y-x) = -sin(x-y)
-            temp[i] -= dt * (1/N) * np.sum(np.exp(beta * np.cos(phase_diffs)[i,:,:]) * np.sin(phase_diffs)[i,:,:])
+
+        for l in range(len(thetas)):
+            temp[l] = -dt * (1/N**2) * np.sum(np.exp(beta * np.cos(phase_diffs)[l,:,:]) * np.sin(phase_diffs)[l,:,:])
         return thetas + temp
     return generic_update(frame, step)
 
@@ -105,7 +105,7 @@ def triple_attention(frame):
 #and connectivity is a necessary condition for clustering to a single point
 p = (1.1)*log(N)/N
 #A = to_numpy_array(erdos_renyi_graph(N, 1/2))
-nodes = [25,25]
+nodes = [floor(N/2), ceil(N/2)]
 probs = [[p,1-p],[1-p,p]]
 G = stochastic_block_model(nodes, probs)
 A = 2* to_numpy_array(G) - np.ones((N,N))
