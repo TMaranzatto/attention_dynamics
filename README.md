@@ -1,4 +1,4 @@
 # attention_dynamics
 
-Dependencies: numpy, matplotlib, networkx
+Dependencies: numpy, matplotlib, networkx, streamlit, scipy
 
