@@ -32,14 +32,22 @@ C = c1*r + conjugate(c1 * r) + c2
 H = 2j*conjugate(B)
 Omega = C
 
+theta = Symbol("θ", real=True)
+field = im(H * exp(-2j * theta))
+dynamics = Omega + field
+
 a = Symbol("a", real=True)
+b = Symbol("b", real=True)
 #formatting this to be more indicative of the matrix structure
-substitution_set = {V[0,0]: Symbol("A00", real=True), V[0,1]: a,
-                    V[1,0]:a, V[1,1]:Symbol("A11", real=True),
+substitution_set = {V[0,0]: a, V[0,1]: 0,
+                    V[1,0]:0, V[1,1]:b,
 
                     A[0, 0]: 1, A[0, 1]: 0,
                     A[1, 0]: 0, A[1, 1]: 1}
 
 print(f"H(t) = {H.subs(substitution_set)}")
 print(f"Omega(t) = {Omega.subs(substitution_set)}")
+print(f"field(t) = {field.subs(substitution_set)}")
+print(f"dynamics(t) = {simplify(dynamics.subs(substitution_set))}")
+
 
