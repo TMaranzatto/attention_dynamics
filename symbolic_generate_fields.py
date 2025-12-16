@@ -36,6 +36,19 @@ theta = Symbol("θ", real=True)
 field = im(H * exp(-2j * theta))
 dynamics = Omega + field
 
+#OA ODE
+rho = symbols('ρ', real=True)
+phi = symbols('ϕ', real=True)
+R1 = im(b1 * exp(2j * phi) + b2)
+R2 = im(b3 * exp(1j*phi))
+I1 = re(b1 * exp(2j * phi) + b2)
+I2 = re(b3 * exp(1j * phi))
+I3 = re(b4 * exp(1j * phi))
+
+rhodot = 2 * ( 1- rho**2) * (R1 * rho + R2)
+phidot = 2 * ((rho**2 + 1)*I1 + (rho**2 + 1)/rho * I2 + 2*I3 * rho + re(b5))
+
+#Example usecase for the last example in the current overleaf (12-16-2025)
 a = Symbol("a", real=True)
 b = Symbol("b", real=True)
 #formatting this to be more indicative of the matrix structure
@@ -45,9 +58,12 @@ substitution_set = {V[0,0]: a, V[0,1]: 0,
                     A[0, 0]: 1, A[0, 1]: 0,
                     A[1, 0]: 0, A[1, 1]: 1}
 
+
 print(f"H(t) = {H.subs(substitution_set)}")
 print(f"Omega(t) = {Omega.subs(substitution_set)}")
 print(f"field(t) = {field.subs(substitution_set)}")
 print(f"dynamics(t) = {simplify(dynamics.subs(substitution_set))}")
+print(f"rhodot(t) = {rhodot.subs(substitution_set)}")
+print(f"phidot(t) = {phidot.subs(substitution_set)}")
 
 
