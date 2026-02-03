@@ -203,8 +203,6 @@ def random_WSs():
 
 
 theta0, WS_variables = random_thetas()
-theta0, WS_variables = random_thetas()
-theta0, WS_variables = random_thetas()
 
 #
 # Integrate ORIGINAL DYNAMICS
@@ -371,8 +369,8 @@ axOA.set_yticks(yticks)
 axOA.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
 st.pyplot(figOA)
 
-if False:
     #REMOVE THE CODE BELOW TO STOP THE ANIMATION...
+    '''
     N_OA = 400
 
 
@@ -409,12 +407,8 @@ if False:
     ani.save('file_name.gif', writer=PillowWriter(fps=10))
     print('Done Converting')
     st.image('file_name.gif')
+    '''
     #END ANIMATION CODE
-
-
-
-
-
 
 #now plot WS
 with st.expander("Show integrated WS equations"):

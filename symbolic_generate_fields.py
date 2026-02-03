@@ -53,12 +53,17 @@ a = Symbol("a", real=True)
 b = Symbol("b", real=True)
 c = Symbol("c", real=True)
 d = Symbol("d", real=True)
-#formatting this to be more indicative of the matrix structure
-substitution_set = {V[0,0]: 1, V[0,1]: 0,
-                    V[1,0]:0, V[1,1]:1,
 
-                    A[0, 0]: a, A[0, 1]: b,
-                    A[1, 0]: b, A[1, 1]: c}
+e = Symbol("e", real=True)
+f = Symbol("f", real=True)
+g = Symbol("g", real=True)
+h = Symbol("h", real=True)
+#formatting this to be more indicative of the matrix structure
+substitution_set = {V[0,0]: a, V[0,1]: b,
+                    V[1,0]:c, V[1,1]:d,
+
+                    A[0, 0]: e, A[0, 1]: f,
+                    A[1, 0]: g, A[1, 1]: h}
 
 #print(f"Real part of ib_1 is:{re(1j*b1.subs(substitution_set))}")
 #print(f"abs(b2) is:{Abs(b2.subs(substitution_set))}")
