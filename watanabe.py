@@ -203,6 +203,8 @@ def random_WSs():
 
 
 theta0, WS_variables = random_thetas()
+theta0, WS_variables = random_thetas()
+theta0, WS_variables = random_thetas()
 
 #
 # Integrate ORIGINAL DYNAMICS
@@ -235,10 +237,11 @@ except Exception as e:
     st.error(f"Error building or evaluating WS RHS:\n{e}")
     st.stop()
 
-total_ws_path = wrap_angles(sol_ws.y)  # shape (N, len(t_eval))
+total_ws_path = sol_ws.y  # shape (N, len(t_eval))
 
-for i in [1, 2]:
-    THRESHOLD = 2 * pi - .01
+for i in [0, 2]:
+    total_ws_path[i, :] = wrap_angles(total_ws_path[i, :])
+    THRESHOLD = 2 * np.pi - .1
     # Calculate difference between consecutive y and x values
     param_path = total_ws_path[i, :]
     dy = np.diff(param_path)
@@ -257,15 +260,27 @@ for i in [1, 2]:
 #start with WS, because we need tracers later.  This is only displayed under a clikcable bar..
 fig3, ax3 = plt.subplots(3, 1, figsize=(8, 8), sharex=True)
 ax3[0].plot(sol_ws.t, total_ws_path[0])
-ax3[0].set_ylabel("WS amplitude ρ")
+ax3[0].set_ylabel("$\gamma$(t)")
 ax3[0].set_ylim(0, 1)
 ax3[0].grid(alpha=0.3)
 ax3[0].set_xlim(0, float(T))
 
 #this follows basin analysis from Gong-Pikovsky
-ax3[1].plot(sol_ws.t, total_ws_path[1] / 2 + pi/2, color='teal', label = r'Φ/2 + $\pi/2$')
-ax3[1].plot(sol_ws.t, total_ws_path[1] / 2 - pi/2, color='cyan', label = r'Φ/2 - $\pi/2$')
-ax3[1].set_ylabel("WS phase Φ \n and tracers")
+a = wrap_angles(total_ws_path[1] / 2 + pi/2)
+dy = np.diff(a)
+mask = np.abs(dy) > np.pi - .5
+full_mask = np.insert(mask, 0, False)
+a_path = np.where(full_mask, np.nan, a)
+
+b = wrap_angles(total_ws_path[1] / 2 - pi/2)
+dy = np.diff(b)
+mask = np.abs(dy) > np.pi - .5
+full_mask = np.insert(mask, 0, False)
+b_path = np.where(full_mask, np.nan, b)
+
+ax3[1].plot(sol_ws.t, a_path, color='teal', label = r'$\Phi$/2 + $\pi/2$')
+ax3[1].plot(sol_ws.t, b_path, color='cyan', label = r'$\Phi$/2 - $\pi/2$')
+ax3[1].set_ylabel("Phase")
 ax3[1].set_yticks([-np.pi/2, 0, np.pi/2])
 ax3[1].set_yticklabels([r"$-\pi/2$", "0", r"$\pi/2$"])
 ax3[1].set_ylim(-pi, pi)
@@ -274,14 +289,14 @@ ax3[1].legend()
 ax3[1].set_xlim(0, float(T))
 
 ax3[2].plot(sol_ws.t, total_ws_path[2])
-ax3[2].set_ylabel("WS parameter η")
+ax3[2].set_ylabel("η(t)")
 ax3[2].set_yticks([-np.pi / 2, 0, np.pi / 2])
 ax3[2].set_yticklabels([r"$-\pi/2$", "0", r"$\pi/2$"])
 ax3[2].set_ylim(-pi, pi)
 ax3[2].grid(alpha=0.3)
 ax3[2].set_xlim(0, float(T))
 
-ax3[2].set_xlabel("time")
+ax3[2].set_xlabel("t")
 
 
 #Now the original thetas
@@ -306,10 +321,10 @@ for i in range(theta_path.shape[0]):
 
 ax.set_xlim(0, float(T))
 ax.set_ylim(-np.pi, np.pi)
-ax.set_xlabel("time")
-ax.set_ylabel("angle (radians)")
+ax.set_xlabel("t")
+ax.set_ylabel("θ(t)")
 ax.set_title(f"{N} sample paths of angles (0 ≤ t ≤ {T})")
-#ax.grid(alpha=0.3)
+ax.grid(alpha=0.3)
 yticks = [-np.pi, -np.pi/2, 0, np.pi/2, np.pi]
 ax.set_yticks(yticks)
 ax.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
@@ -346,12 +361,12 @@ axOA.streamplot(
     color = 'k'
 )
 rho_min, rho_max = 0.05, 1
-axOA.set_xlabel(r"$\rho$")
-axOA.set_ylabel(r"$\phi$")
+axOA.set_xlabel(r"$\rho(t)$")
+axOA.set_ylabel(r"$\phi(t)$")
 axOA.set_xlim(rho_min, rho_max)
 axOA.set_ylim(-np.pi, np.pi)
 axOA.set_title("OA phase space vector field")
-axOA.grid(True)
+axOA.grid(False)
 axOA.set_yticks(yticks)
 axOA.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
 st.pyplot(figOA)
@@ -411,12 +426,12 @@ with st.expander("Show order-parameters"):
     R2_t = np.mean(np.exp(2j * sol.y), axis=0)
     fig2, ax2 = plt.subplots(2, 1, figsize=(8, 5), sharex=True)
     ax2[0].plot(sol.t, np.abs(R1_t))
-    ax2[0].set_ylabel("|R1|(t)")
+    ax2[0].set_ylabel("$|R_1(t)|$")
     ax2[0].set_ylim(0, 1)
     ax2[0].grid(alpha=0.3)
     ax2[1].plot(sol.t, np.abs(R2_t))
-    ax2[1].set_ylabel("|R2|(t)")
-    ax2[1].set_xlabel("time")
+    ax2[1].set_ylabel("$|R_2(t)|$")
+    ax2[1].set_xlabel("t")
     ax2[1].set_ylim(0, 1)
     ax2[1].grid(alpha=0.3)
     ax2[0].set_xlim(0, float(T))

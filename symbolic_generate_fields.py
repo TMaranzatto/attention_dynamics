@@ -1,4 +1,4 @@
-from sympy import Symbol, symbols, Matrix, Rational, N, simplify, Float, conjugate, substitution
+from sympy import Symbol, symbols, Matrix, Rational, N, simplify, Float, conjugate, substitution, im, re, exp, Abs
 #matrices are generated here
 v_syms  = symbols('v0:%d:%d' % (2,2))
 a_syms = symbols('a:%d:%d' % (2,2))
@@ -11,7 +11,7 @@ r = symbols('r')
 
 w0 = V[0, 0] * A[1, 0] + V[0, 1] * A[1, 1] - V[1, 0] * A[0, 0] - V[1, 1] * A[0, 1]
 w1 = V[0, 0] * A[0, 0] + V[0, 1] * A[0, 1] - V[1, 0] * A[1, 0] - V[1, 1] * A[1, 1]
-w2 = -V[0, 0] * A[1, 0] - V[0, 1] * A[1, 1] - V[1, 0] * A[0, 0] - V[1, 1] * A[0, 1]
+w2 =-V[0, 0] * A[1, 0] - V[0, 1] * A[1, 1] - V[1, 0] * A[0, 0] - V[1, 1] * A[0, 1]
 w3 = V[0, 0] * A[1, 0] - V[0, 1] * A[1, 1] - V[1, 0] * A[0, 0] + V[1, 1] * A[0, 1]
 w4 = V[0, 0] * A[1, 1] + V[0, 1] * A[1, 0] - V[1, 0] * A[0, 1] - V[1, 1] * A[0, 0]
 w5 = V[0, 0] * A[0, 0] - V[0, 1] * A[0, 1] - V[1, 0] * A[1, 0] + V[1, 1] * A[1, 1]
@@ -23,11 +23,11 @@ b1 = 1 / 16 * (1j * w5 + w6 + w7 - 1j * w8)
 b2 = 1 / 16 * (1j * w5 - w6 + w7 + 1j * w8)
 b3 = 1 / 8 * (1j * w1 - w2)
 
-c1 = 1 / 8 * (-w3 + 1j * w4)
-c2 = - 1 / 4 * w0
+b4 = 1 / 8 * (-w3 + 1j * w4)
+b5 = - 1 / 4 * w0
 
 B = b1*r + b2 * conjugate(r) + b3
-C = c1*r + conjugate(c1 * r) + c2
+C = b4*r + conjugate(b4) * conjugate(r) + b5
 
 H = 2j*conjugate(B)
 Omega = C
@@ -51,19 +51,22 @@ phidot = 2 * ((rho**2 + 1)*I1 + (rho**2 + 1)/rho * I2 + 2*I3 * rho + re(b5))
 #Example usecase for the last example in the current overleaf (12-16-2025)
 a = Symbol("a", real=True)
 b = Symbol("b", real=True)
+c = Symbol("c", real=True)
+d = Symbol("d", real=True)
 #formatting this to be more indicative of the matrix structure
-substitution_set = {V[0,0]: a, V[0,1]: 0,
-                    V[1,0]:0, V[1,1]:b,
+substitution_set = {V[0,0]: 1, V[0,1]: 0,
+                    V[1,0]:0, V[1,1]:1,
 
-                    A[0, 0]: 1, A[0, 1]: 0,
-                    A[1, 0]: 0, A[1, 1]: 1}
+                    A[0, 0]: a, A[0, 1]: b,
+                    A[1, 0]: b, A[1, 1]: c}
+
+#print(f"Real part of ib_1 is:{re(1j*b1.subs(substitution_set))}")
+#print(f"abs(b2) is:{Abs(b2.subs(substitution_set))}")
 
 
-print(f"H(t) = {H.subs(substitution_set)}")
-print(f"Omega(t) = {Omega.subs(substitution_set)}")
-print(f"field(t) = {field.subs(substitution_set)}")
-print(f"dynamics(t) = {simplify(dynamics.subs(substitution_set))}")
+#print(f"H(t) = {H.subs(substitution_set)}")
+#print(f"Omega(t) = {Omega.subs(substitution_set)}")
+#print(f"field(t) = {field.subs(substitution_set)}")
+#print(f"dynamics(t) = {simplify(dynamics.subs(substitution_set))}")
 print(f"rhodot(t) = {rhodot.subs(substitution_set)}")
 print(f"phidot(t) = {phidot.subs(substitution_set)}")
-
-
