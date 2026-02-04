@@ -1,4 +1,5 @@
 # app.py
+import os
 import streamlit as st
 import numpy as np
 from math import pi
@@ -94,7 +95,7 @@ with st.sidebar:
 
     rhodot = 2 * beta * (1 - rho ** 2) * (R1 * rho + R2)
     phidot = 2 * beta * ((rho ** 2 + 1) * I1 + (rho ** 2 + 1) / rho * I2 + 2 * I3 * rho + re(c2))
-    print(beta)
+    # print(beta)
 # Helper: wrap angles to [-pi, pi]
 def wrap_angles(x):
     return ((x + np.pi) % (2*np.pi)) - np.pi
@@ -118,7 +119,7 @@ def make_ws_rhs():
         R2 = np.mean(helper(psis))
         R2_conj = np.conj(R2)
 
-        omega = beta * (c1 * R2 + np.conj(c1) * R2_conj + c2)
+        omega = np.real(beta * (c1 * R2 + np.conj(c1) * R2_conj + c2))
         H = 2j * beta * np.conj((b1 * R2 + b2 * R2_conj + b3))
 
         rho_dot = (1 - rho**2) * np.real(H * np.exp(-1j * phi))
@@ -144,7 +145,7 @@ def make_rhs():
         R2_conj = np.conj(R2)
 
 
-        omega = beta * (c1 * R2 + np.conj(c1) * R2_conj + c2)
+        omega = np.real(beta * (c1 * R2 + np.conj(c1) * R2_conj + c2))
         H = 2j * beta * np.conj((b1 * R2 + b2*R2_conj + b3))
 
         def fin(angle):
@@ -153,7 +154,7 @@ def make_rhs():
 
         vectorized = np.vectorize(fin)
 
-        return vectorized(thetas).astype(float)
+        return np.real(vectorized(thetas))
 
     return rhs
 
@@ -198,7 +199,7 @@ def random_WSs():
     phi_0 = 0
     rho_0 = .01
     thetas = angles_from_WS_variables(rho_0, phi_0, eta_0, psis)
-    print(np.mean(np.exp(2j*thetas)))
+    # print(np.mean(np.exp(2j*thetas)))
     return thetas, np.r_[rho_0, phi_0, eta_0, psis]
 
 
@@ -369,45 +370,48 @@ axOA.set_yticks(yticks)
 axOA.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
 st.pyplot(figOA)
 
-#REMOVE THE CODE BELOW TO STOP THE ANIMATION...
-'''
-N_OA = 400
+
+st.markdown("---")
+st.subheader("2. Phase Space Flow Animation")
+st.write("Visualizes random test particles flowing along the theoretical vector field.")
+
+if st.button("Generate Flow Animation"):
+    N_OA = 400
+
+    rho_p = np.random.uniform(rho_min, rho_max, N_OA)
+    phi_p = np.random.uniform(-np.pi, np.pi, N_OA)
+
+    dt = 0.05
+
+    scat = axOA.scatter(rho_p, phi_p, s=10, alpha=1)
+
+    def update(frame):
+        global rho_p, phi_p
+
+        drho = rhodot_f(rho_p, phi_p)
+        dphi = phidot_f(rho_p, phi_p)
+
+        rho_p = rho_p + dt * drho
+        phi_p = wrap_angles(phi_p + dt * dphi)
+
+        # prevent rho collapse
+        rho_p = np.clip(rho_p, 0.05, 1)
+
+        scat.set_offsets(np.column_stack((rho_p, phi_p)))
+        return scat,
 
 
-rho_p = np.random.uniform(rho_min, rho_max, N_OA)
-phi_p = np.random.uniform(-np.pi, np.pi, N_OA)
+    # 4. Animate
+    with st.spinner("Generating Flow Animation..."):
+        ani = FuncAnimation(figOA, update, frames=50, interval=100, blit=False)
+        
+        # Robust Path Construction
+        save_path_flow = os.path.join(os.getcwd(), 'flow_anim.gif')
+        
+        ani.save(save_path_flow, writer=PillowWriter(fps=10))
+        st.image(save_path_flow)
 
-dt = 0.05
 
-scat = axOA.scatter(rho_p, phi_p, s=10, alpha=1)
-
-def update(frame):
-    global rho_p, phi_p
-
-    drho = rhodot_f(rho_p, phi_p)
-    dphi = phidot_f(rho_p, phi_p)
-
-    rho_p = rho_p + dt * drho
-    phi_p = wrap_angles(phi_p + dt * dphi)
-
-    # prevent rho collapse
-    rho_p = np.clip(rho_p, 0.05, 1)
-
-    scat.set_offsets(np.column_stack((rho_p, phi_p)))
-    return scat,
-print('done computing')
-ani = FuncAnimation(
-    figOA,
-    update,
-    frames=50,
-    interval=100,
-    blit=False
-)
-print('done animating')
-ani.save('file_name.gif', writer=PillowWriter(fps=10))
-print('Done Converting')
-st.image('file_name.gif')
-'''
 #END ANIMATION CODE
 
 #now plot WS
@@ -539,7 +543,7 @@ if st.button("Generate Animation"):
     # 5. RENDER
     with st.spinner(f"Rendering {len(anim_indices)} frames at {anim_fps} FPS..."):
         ani = FuncAnimation(fig_anim, update, frames=anim_indices, blit=False)
-        gif_path = "particle_evolution.gif"
+        gif_path = os.path.join(os.getcwd(), 'particle_evolution.gif')
         ani.save(gif_path, writer=PillowWriter(fps=anim_fps))
         
         st.success("Animation generated!")
