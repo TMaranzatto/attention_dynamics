@@ -369,46 +369,46 @@ axOA.set_yticks(yticks)
 axOA.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
 st.pyplot(figOA)
 
-    #REMOVE THE CODE BELOW TO STOP THE ANIMATION...
-    '''
-    N_OA = 400
+#REMOVE THE CODE BELOW TO STOP THE ANIMATION...
+'''
+N_OA = 400
 
 
-    rho_p = np.random.uniform(rho_min, rho_max, N_OA)
-    phi_p = np.random.uniform(-np.pi, np.pi, N_OA)
+rho_p = np.random.uniform(rho_min, rho_max, N_OA)
+phi_p = np.random.uniform(-np.pi, np.pi, N_OA)
 
-    dt = 0.05
+dt = 0.05
 
-    scat = axOA.scatter(rho_p, phi_p, s=10, alpha=1)
+scat = axOA.scatter(rho_p, phi_p, s=10, alpha=1)
 
-    def update(frame):
-        global rho_p, phi_p
+def update(frame):
+    global rho_p, phi_p
 
-        drho = rhodot_f(rho_p, phi_p)
-        dphi = phidot_f(rho_p, phi_p)
+    drho = rhodot_f(rho_p, phi_p)
+    dphi = phidot_f(rho_p, phi_p)
 
-        rho_p = rho_p + dt * drho
-        phi_p = wrap_angles(phi_p + dt * dphi)
+    rho_p = rho_p + dt * drho
+    phi_p = wrap_angles(phi_p + dt * dphi)
 
-        # prevent rho collapse
-        rho_p = np.clip(rho_p, 0.05, 1)
+    # prevent rho collapse
+    rho_p = np.clip(rho_p, 0.05, 1)
 
-        scat.set_offsets(np.column_stack((rho_p, phi_p)))
-        return scat,
-    print('done computing')
-    ani = FuncAnimation(
-        figOA,
-        update,
-        frames=50,
-        interval=100,
-        blit=False
-    )
-    print('done animating')
-    ani.save('file_name.gif', writer=PillowWriter(fps=10))
-    print('Done Converting')
-    st.image('file_name.gif')
-    '''
-    #END ANIMATION CODE
+    scat.set_offsets(np.column_stack((rho_p, phi_p)))
+    return scat,
+print('done computing')
+ani = FuncAnimation(
+    figOA,
+    update,
+    frames=50,
+    interval=100,
+    blit=False
+)
+print('done animating')
+ani.save('file_name.gif', writer=PillowWriter(fps=10))
+print('Done Converting')
+st.image('file_name.gif')
+'''
+#END ANIMATION CODE
 
 #now plot WS
 with st.expander("Show integrated WS equations"):
@@ -431,3 +431,116 @@ with st.expander("Show order-parameters"):
     ax2[0].set_xlim(0, float(T))
     ax2[1].set_xlim(0, float(T))
     st.pyplot(fig2)
+
+# NEW IMPLEMENTATION FOR ANIMATION
+
+anim_fps = 20  # frames per second for the animation
+
+st.markdown("---")
+st.header("Dynamics Animation")
+
+# --- Speed Controls ---
+anim_duration = st.slider(
+    "Slow-down", 
+    min_value=float(T), max_value=60.0, value=float(T), step=1.0,
+    help="Set longer duration for slow-motion (detailed view), shorter for fast-forward."
+)
+
+st.write("Click the button below to generate the animation.")
+
+if st.button("Generate Animation"):
+    # 1. PREPARE DATA
+    # Calculate complex order parameters R1 and R2 over the full time range
+    # sol.y has shape (N, frames)
+    R1_complex = np.mean(np.exp(1j * sol.y), axis=0)
+    R2_complex = np.mean(np.exp(2j * sol.y), axis=0)
+    
+    # 2. CALCULATE SAMPLING
+    total_anim_frames = int(anim_duration * anim_fps)
+    step = max(1, int(len(sol.t) / total_anim_frames))
+    anim_indices = np.arange(0, len(sol.t), step)
+    
+    # 3. SETUP FIGURES
+    # Create two side-by-side plots with equal aspect ratio
+    fig_anim, (ax_particles, ax_order) = plt.subplots(1, 2, figsize=(12, 6))
+    
+    # --- Left Plot: Particles on Unit Circle ---
+    ax_particles.set_xlim(-1.2, 1.2)
+    ax_particles.set_ylim(-1.2, 1.2)
+    ax_particles.set_aspect('equal')
+    ax_particles.set_title("Particle Positions")
+    ax_particles.axis('off')
+    
+    # Static circle for particles
+    circle_left = plt.Circle((0, 0), 1, color='lightgray', fill=False, linestyle='--', linewidth=2)
+    ax_particles.add_artist(circle_left)
+    
+    # Particle colors
+    particle_colors = plt.cm.hsv(np.linspace(0, 1, int(N)))
+    
+    # Initialize particles (Frame 0)
+    x0 = np.cos(sol.y[:, 0])
+    y0 = np.sin(sol.y[:, 0])
+    scat_particles = ax_particles.scatter(x0, y0, c=particle_colors, s=60, edgecolors='k', zorder=3)
+
+    # --- Right Plot: Complex Order Parameters (R1 & R2) ---
+    ax_order.set_xlim(-1.2, 1.2)
+    ax_order.set_ylim(-1.2, 1.2)
+    ax_order.set_aspect('equal')
+    ax_order.set_title("Order Parameters (Complex Plane)")
+    ax_order.axis('off')
+
+    # Static circle for Order Parameters
+    circle_right = plt.Circle((0, 0), 1, color='lightgray', fill=False, linestyle='-', linewidth=2)
+    ax_order.add_artist(circle_right)
+    # Add crosshairs for reference
+    ax_order.axhline(0, color='lightgray', linestyle=':', lw=1)
+    ax_order.axvline(0, color='lightgray', linestyle=':', lw=1)
+
+    # Plot full "future" trajectories as faint background traces
+    ax_order.plot(np.real(R1_complex), np.imag(R1_complex), color='orange', alpha=0.2, lw=1)
+    ax_order.plot(np.real(R2_complex), np.imag(R2_complex), color='blue', alpha=0.2, lw=1)
+
+    # Initialize Dynamic Elements for R1 (Orange) and R2 (Blue)
+    # R1 Setup
+    line_R1, = ax_order.plot([], [], color='orange', lw=2, label=r'$R_1$')
+    point_R1, = ax_order.plot([], [], 'o', color='orange', markeredgecolor='k', markersize=8)
+    
+    # R2 Setup
+    line_R2, = ax_order.plot([], [], color='blue', lw=2, label=r'$R_2$')
+    point_R2, = ax_order.plot([], [], 'o', color='blue', markeredgecolor='k', markersize=8)
+    
+    # Add Legend to distinguish R1 and R2
+    ax_order.legend(loc='upper right', frameon=False)
+
+    # 4. UPDATE FUNCTION
+    def update(frame_idx):
+        # -- Update Left Plot (Particles) --
+        current_angles = sol.y[:, frame_idx] 
+        scat_particles.set_offsets(np.column_stack([np.cos(current_angles), np.sin(current_angles)]))
+        
+        # -- Update Right Plot (Order Parameters) --
+        # Get history up to this frame for the "tail"
+        # We slice using the step to match the animation frames or just raw indices up to frame_idx
+        # Using raw indices is smoother for the line history
+        r1_hist = R1_complex[:frame_idx+1]
+        r2_hist = R2_complex[:frame_idx+1]
+
+        # Update R1 (Orange)
+        line_R1.set_data(np.real(r1_hist), np.imag(r1_hist))
+        point_R1.set_data([np.real(R1_complex[frame_idx])], [np.imag(R1_complex[frame_idx])])
+
+        # Update R2 (Blue)
+        line_R2.set_data(np.real(r2_hist), np.imag(r2_hist))
+        point_R2.set_data([np.real(R2_complex[frame_idx])], [np.imag(R2_complex[frame_idx])])
+        
+        return scat_particles, line_R1, point_R1, line_R2, point_R2
+
+    # 5. RENDER
+    with st.spinner(f"Rendering {len(anim_indices)} frames at {anim_fps} FPS..."):
+        ani = FuncAnimation(fig_anim, update, frames=anim_indices, blit=False)
+        gif_path = "particle_evolution.gif"
+        ani.save(gif_path, writer=PillowWriter(fps=anim_fps))
+        
+        st.success("Animation generated!")
+        st.image(gif_path)
