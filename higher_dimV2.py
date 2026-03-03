@@ -287,58 +287,108 @@ st.info(f"Max deviation from unit sphere: **{max_norm_dev:.2e}**")
 st.markdown("---")
 st.subheader("Token dynamics")
 
-idx_i, idx_j = np.triu_indices(n_tokens, k=1)
-cos_sim_time = np.zeros((len(idx_i), frames))
+# Clustering metric: <x_i, x_j>^2  (squared cosine similarity)
+# This is the correct analogue of the 2D order parameter e^{2i*theta}:
+# tokens at theta and theta+pi are antipodal (cos sim = -1) but represent
+# the same cluster, so we use cos^2 which equals 1 for both aligned and antipodal.
+# In higher dims: <x_i,x_j>^2 = ||x_i x_i^T - x_j x_j^T||^2 proxy (Frobenius).
+idx_i, idx_j    = np.triu_indices(n_tokens, k=1)
+cos_sim_time    = np.zeros((len(idx_i), frames))   # raw <x_i,x_j>
+cos2_sim_time   = np.zeros((len(idx_i), frames))   # squared <x_i,x_j>^2
 for t_idx in range(frames):
     Xt = X_traj[:, :, t_idx]
-    G  = Xt @ Xt.T
-    cos_sim_time[:, t_idx] = G[idx_i, idx_j]
+    G  = Xt @ Xt.T                          # Gram matrix, entries = <x_i,x_j>
+    cos_sim_time[:,  t_idx] = G[idx_i, idx_j]
+    cos2_sim_time[:, t_idx] = G[idx_i, idx_j]**2
 
-mean_cos = cos_sim_time.mean(axis=0)
-std_cos  = cos_sim_time.std(axis=0)
+mean_cos  = cos_sim_time.mean(axis=0)
+std_cos   = cos_sim_time.std(axis=0)
+mean_cos2 = cos2_sim_time.mean(axis=0)
+std_cos2  = cos2_sim_time.std(axis=0)
 
-fig1, axes = plt.subplots(1, 2, figsize=(13, 4))
+fig1, ax = plt.subplots(figsize=(7, 4))
 
-ax = axes[0]
-ax.plot(sol.t, mean_cos, color="steelblue", lw=2, label="mean cos sim")
-ax.fill_between(sol.t, mean_cos - std_cos, mean_cos + std_cos,
-                alpha=0.25, color="steelblue", label="±1 std")
-ax.axhline( 1.0, color='green', lw=0.8, linestyle='--', label='full clustering')
-ax.axhline( 0.0, color='gray',  lw=0.8, linestyle=':',  label='orthogonal')
-ax.axhline(-1.0, color='red',   lw=0.8, linestyle='--', label='antipodal')
+# Plot squared cosine similarity (correct clustering metric)
+ax.plot(sol.t, mean_cos2, color="tomato", lw=2, label=r"mean $\langle x_i,x_j\rangle^2$ (clustering)")
+ax.fill_between(sol.t, mean_cos2 - std_cos2, mean_cos2 + std_cos2,
+                alpha=0.2, color="tomato", label="±1 std")
+# Also show raw cosine sim as thin dashed for reference
+ax.plot(sol.t, mean_cos, color="steelblue", lw=1, linestyle='--',
+        alpha=0.6, label=r"mean $\langle x_i,x_j\rangle$ (raw, for ref)")
+ax.axhline(1.0, color='green', lw=0.8, linestyle='--', label='full clustering = 1')
+ax.axhline(0.0, color='gray',  lw=0.8, linestyle=':')
 ax.set_xlabel("t")
-ax.set_ylabel("cosine similarity")
-ax.set_title(f"Pairwise cosine similarities — {case}")
+ax.set_ylabel(r"$\langle x_i, x_j\rangle^2$")
+ax.set_title(f"Clustering metric — {case}")
 ax.set_xlim(0, T)
-ax.set_ylim(-1.05, 1.05)
+ax.set_ylim(-0.05, 1.05)
 ax.legend(fontsize=8)
 ax.grid(alpha=0.3)
-
-dim_means = X_traj.mean(axis=0)
-ax2 = axes[1]
-cmap = plt.cm.tab10
-for dim_idx in range(min(d, 10)):
-    ax2.plot(sol.t, dim_means[dim_idx], color=cmap(dim_idx % 10),
-             lw=1.5, label=f"dim {dim_idx}")
-ax2.set_xlabel("t")
-ax2.set_ylabel("mean token value")
-ax2.set_title("Per-dimension mean across tokens")
-ax2.set_xlim(0, T)
-ax2.grid(alpha=0.3)
-if d <= 10:
-    ax2.legend(fontsize=7, ncol=2)
 
 plt.tight_layout()
 st.pyplot(fig1)
 
+st.markdown(
+    r"""
+#### What this graph shows and why we plot it this way
+
+**The naive approach — and why it fails.**
+The most natural way to measure whether tokens are clustering is to track the raw
+pairwise cosine similarity $\langle x_i, x_j \rangle$ between every pair of tokens.
+If all tokens collapse to the same point on $\mathbb{S}^{d-1}$, every pairwise cosine
+similarity equals $1$, and the mean would rise to $1$ over time.
+
+However, this fails for these dynamics. The continuous-time attention ODE does **not**
+push all tokens to the same point — it pushes them to cluster in the sense of the
+second-order parameter $R_2$. In the 2D case ($d=2$, tokens on $\mathbb{S}^1$), the
+order parameter tracked by the OA reduction is
+
+$$R_2(t) = \frac{1}{n} \sum_{j=1}^n e^{2i\theta_j},$$
+
+not $R_1 = \frac{1}{n}\sum e^{i\theta_j}$. The factor of $2$ in the exponent means
+the dynamics are $\pi$-periodic in $\theta$: a token at angle $\theta$ and a token at
+$\theta + \pi$ are treated as **identical** by $R_2$, even though as vectors on
+$\mathbb{S}^1$ they are antipodal ($\langle x_i, x_j \rangle = -1$). Full clustering
+in the $R_2$ sense means tokens split into groups at $\theta^*$ and $\theta^* + \pi$,
+so the mean raw cosine similarity is exactly $0$ even when the system is perfectly
+clustered. This is precisely why earlier plots showed a flat line at $0$ regardless
+of parameters.
+
+**The correct metric.**
+The right analogue of $|R_2| \to 1$ in dimension $d$ is to measure similarity between
+the rank-1 projection matrices $x_i x_i^\top$ rather than between the vectors $x_i$
+themselves. The Frobenius inner product between two such projections is
+
+$$\langle x_i x_i^\top,\, x_j x_j^\top \rangle_F = \mathrm{tr}(x_i x_i^\top x_j x_j^\top) = \langle x_i, x_j \rangle^2.$$
+
+This equals $1$ whether $x_i = x_j$ (aligned) or $x_i = -x_j$ (antipodal), and equals
+$0$ when the tokens are orthogonal. It is invariant under the sign flip $x \mapsto -x$
+that the dynamics treat as equivalent.
+
+**What to look for on the graph.**
+- $\langle x_i, x_j \rangle^2 \to 1$: tokens are clustering (all aligning or forming
+  antipodal pairs), consistent with $|R_2| \to 1$.
+- $\langle x_i, x_j \rangle^2 \approx 1/d$: tokens remain approximately uniformly
+  spread on $\mathbb{S}^{d-1}$ — no clustering.
+- Oscillating $\langle x_i, x_j \rangle^2$: cyclic / Hamiltonian behavior
+  (Case 4 with $a < b$).
+
+The shaded band is $\pm 1$ standard deviation across all $\binom{n}{2}$ pairs.
+A narrow band near $1$ means tight single-cluster behavior; a wide band means tokens
+have split into multiple distinct clusters. The dashed blue line shows raw cosine
+similarity for reference — note how it stays near $0$ even when the squared version
+is near $1$, which is why we cannot use it as a clustering diagnostic here.
+    """
+)
+
 with st.expander("Pairwise cosine similarity distribution  (t=0 vs t=T)"):
     fig2, ax3 = plt.subplots(figsize=(7, 4))
-    ax3.hist(cos_sim_time[:, 0],  bins=40, alpha=0.6, color="steelblue", label="t=0")
-    ax3.hist(cos_sim_time[:, -1], bins=40, alpha=0.6, color="tomato",    label=f"t={T}")
-    ax3.axvline(1.0, color='green', lw=1, linestyle='--', label='full clustering')
-    ax3.set_xlabel("Cosine similarity ⟨xᵢ, xⱼ⟩")
+    ax3.hist(cos2_sim_time[:, 0],  bins=40, alpha=0.6, color="steelblue", label="t=0")
+    ax3.hist(cos2_sim_time[:, -1], bins=40, alpha=0.6, color="tomato",    label=f"t={T}")
+    ax3.axvline(1.0, color='green', lw=1, linestyle='--', label='full clustering = 1')
+    ax3.set_xlabel(r"Squared cosine similarity $\langle x_i,x_j\rangle^2$")
     ax3.set_ylabel("Count")
-    ax3.set_title("Pairwise cosine similarities: t=0 vs t=T")
+    ax3.set_title("Clustering metric distribution: t=0 vs t=T")
     ax3.legend()
     ax3.grid(alpha=0.3)
     st.pyplot(fig2)

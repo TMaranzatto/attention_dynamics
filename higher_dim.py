@@ -282,20 +282,24 @@ mean_cos = cos_sim_time.mean(axis=0)
 std_cos  = cos_sim_time.std(axis=0)
 
 ax = axes[0]
-ax.plot(sol.t, mean_cos, color="steelblue", lw=2, label="mean cos sim")
-ax.fill_between(sol.t, mean_cos - std_cos, mean_cos + std_cos,
-                alpha=0.25, color="steelblue", label="±1 std")
-ax.axhline(1.0, color='gray', lw=0.8, linestyle='--', label='perfect clustering')
+# Plot squared cosine similarity (correct clustering metric)
+ax.plot(sol.t, mean_cos2, color="tomato", lw=2, label=r"mean $\langle x_i,x_j\rangle^2$ (clustering)")
+ax.fill_between(sol.t, mean_cos2 - std_cos2, mean_cos2 + std_cos2,
+                alpha=0.2, color="tomato", label="±1 std")
+# Also show raw cosine sim as thin dashed for reference
+ax.plot(sol.t, mean_cos, color="steelblue", lw=1, linestyle='--',
+        alpha=0.6, label=r"mean $\langle x_i,x_j\rangle$ (raw, for ref)")
+ax.axhline(1.0, color='green', lw=0.8, linestyle='--', label='full clustering = 1')
+ax.axhline(0.0, color='gray',  lw=0.8, linestyle=':')
 ax.set_xlabel("t")
-ax.set_ylabel("cosine similarity")
-ax.set_title("Pairwise cosine similarities over time")
+ax.set_ylabel(r"$\langle x_i, x_j\rangle^2$")
+ax.set_title(f"Clustering metric — {case}")
 ax.set_xlim(0, T)
-ax.set_ylim(-1.05, 1.05)
+ax.set_ylim(-0.05, 1.05)
 ax.legend(fontsize=8)
 ax.grid(alpha=0.3)
 
-# Right: per-dimension mean across tokens
-dim_means = X_traj.mean(axis=0)    # (d, frames)
+dim_means = X_traj.mean(axis=0)
 ax2 = axes[1]
 cmap = plt.cm.tab10
 for dim_idx in range(min(d, 10)):
