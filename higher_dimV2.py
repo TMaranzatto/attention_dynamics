@@ -86,10 +86,10 @@ with st.sidebar:
     # ── Case-specific parameters ──────────────────────────────────────────────
     if case == "Case 1: V=I, A sym PD":
         st.markdown(r"""
-**Case 1**: $V = I$, $A$ symmetric positive definite.
+        **Case 1**: $V = I$, $A$ symmetric positive definite.
 
-Clustering is governed by definiteness of $A + A^\top = 2A$.
-Since $A$ is symmetric PD here, clustering is guaranteed for linear attention.
+        Clustering is governed by definiteness of $A + A^\top = 2A$.
+        Since $A$ is symmetric PD here, clustering is guaranteed for linear attention.
         """)
         a_scale = st.slider("Eigenvalue scale σ", min_value=0.1, max_value=5.0, value=1.0, step=0.1,
                             help="Eigenvalues of A drawn from Uniform(0.1, σ).")
@@ -101,31 +101,56 @@ Since $A$ is symmetric PD here, clustering is guaranteed for linear attention.
 
     elif case == "Case 2: A=I, V symmetric":
         st.markdown(r"""
-**Case 2**: $A = I$, $V$ symmetric.
+        **Case 2**: $A = I$, $V$ symmetric.
 
-Clustering governed by the **top eigenvalue** $\lambda_1$ of $V$.
-Positive $\lambda_1$ → clustering; negative → dispersion.
+        Clustering governed by the **top eigenvalue** $\lambda_1$ of $V$.
+        Positive $\lambda_1$ → clustering; negative → dispersion.
         """)
         top_eig     = st.slider("Top eigenvalue λ₁ of V", min_value=-5.0, max_value=5.0, value=2.0, step=0.1)
         other_scale = st.slider("Other eigenvalues scale", min_value=0.0, max_value=2.0, value=0.5, step=0.1)
         Q_orth      = ortho_group.rvs(d, random_state=int(matrix_seed))
-        eigvals_V   = rng_mat.normal(0.0, float(other_scale), size=d)
+        # Draw remaining eigenvalues and clamp them so top_eig is always
+        # the true spectral maximum, regardless of its sign:
+        #   - top_eig >= 0: clamp others to (-|top_eig|*0.9, +|top_eig|*0.9)
+        #     so they are strictly smaller in value
+        #   - top_eig <  0: clamp others to (-inf, top_eig - eps)
+        #     so they are all strictly more negative — all eigenvalues negative,
+        #     top_eig is the least negative (= largest), dispersion guaranteed
+        eigvals_V = rng_mat.normal(0.0, float(other_scale), size=d)
+        if d > 1:
+            lam = float(top_eig)
+            if lam > 0:
+                # Others must be strictly < lam: clamp to (-0.9*lam, 0.9*lam)
+                cap = lam * 0.9
+                eigvals_V[1:] = np.clip(eigvals_V[1:], -cap, cap)
+            elif lam < 0:
+                # Others must be strictly < lam (more negative): clamp above to lam - eps
+                eigvals_V[1:] = np.clip(eigvals_V[1:], -abs(lam) * 2, lam - 1e-3)
+            else:
+                # lam == 0: all others negative
+                eigvals_V[1:] = -np.abs(eigvals_V[1:]) - 1e-3
         eigvals_V[0] = float(top_eig)
         A = np.eye(d)
         V = Q_orth @ np.diag(eigvals_V) @ Q_orth.T
-        st.write("V eigenvalues:", np.round(np.sort(eigvals_V)[::-1], 3).tolist())
+        actual_top = np.linalg.eigvalsh(V).max()
+        if float(top_eig) >= 0:
+            st.success(f"Top eigenvalue of V: **{actual_top:.3f}** → clustering expected")
+        else:
+            st.error(f"Top eigenvalue of V: **{actual_top:.3f}** → dispersion expected")
+        st.write("All V eigenvalues:", np.round(np.sort(eigvals_V)[::-1], 3).tolist())
+
 
     elif case == "Case 4: A=I, V Hamiltonian":
         st.markdown(r"""
-**Case 4**: $A = I$, $V$ built from $2\times 2$ Hamiltonian blocks
-$\begin{pmatrix}a & b \\ -b & -a\end{pmatrix}$.
+        **Case 4**: $A = I$, $V$ built from $2\times 2$ Hamiltonian blocks
+        $\begin{pmatrix}a & b \\ -b & -a\end{pmatrix}$.
 
-- $a > b$: complete clustering
-- $a < b$: cyclic / oscillatory (bifurcation)
-- $a = b$: bifurcation point
+        - $a > b$: complete clustering
+        - $a < b$: cyclic / oscillatory (bifurcation)
+        - $a = b$: bifurcation point
 
-For $d > 2$: $V$ is block-diagonal with $\lfloor d/2 \rfloor$ identical blocks.
-        """)
+        For $d > 2$: $V$ is block-diagonal with $\lfloor d/2 \rfloor$ identical blocks.
+                """)
         a_param = st.slider("a", min_value=-3.0, max_value=3.0, value=1.0, step=0.05)
         b_param = st.slider("b", min_value=-3.0, max_value=3.0, value=0.5, step=0.05)
         if a_param > b_param:
