@@ -165,7 +165,7 @@ with st.sidebar:
         for i in range(0, d - 1, 2):
             V[i:i+2, i:i+2] = block
         if d % 2 == 1:
-            V[d-1, d-1] = a_param
+            V[d-1, d-1] = 0
 
     else:  # Random
         st.markdown(r"""
@@ -339,7 +339,7 @@ ax.fill_between(sol.t, mean_cos2 - std_cos2, mean_cos2 + std_cos2,
                 alpha=0.2, color="tomato", label="±1 std")
 # Also show raw cosine sim as thin dashed for reference
 ax.plot(sol.t, mean_cos, color="steelblue", lw=1, linestyle='--',
-        alpha=0.6, label=r"mean $\langle x_i,x_j\rangle$ (raw, for ref)")
+        alpha=0.6, label=r"mean $\langle x_i,x_j\rangle$")
 ax.axhline(1.0, color='green', lw=0.8, linestyle='--', label='full clustering = 1')
 ax.axhline(0.0, color='gray',  lw=0.8, linestyle=':')
 ax.set_xlabel("t")
@@ -353,87 +353,121 @@ ax.grid(alpha=0.3)
 plt.tight_layout()
 st.pyplot(fig1)
 
-st.markdown(
-    r"""
-#### What this graph shows and why we plot it this way
+# st.markdown(
+#     r"""
+# #### What this graph shows and why we plot it this way
 
-**The naive approach — and why it fails.**
-The most natural way to measure whether tokens are clustering is to track the raw
-pairwise cosine similarity $\langle x_i, x_j \rangle$ between every pair of tokens.
-If all tokens collapse to the same point on $\mathbb{S}^{d-1}$, every pairwise cosine
-similarity equals $1$, and the mean would rise to $1$ over time.
+# **The naive approach — and why it fails.**
+# The most natural way to measure whether tokens are clustering is to track the raw
+# pairwise cosine similarity $\langle x_i, x_j \rangle$ between every pair of tokens.
+# If all tokens collapse to the same point on $\mathbb{S}^{d-1}$, every pairwise cosine
+# similarity equals $1$, and the mean would rise to $1$ over time.
 
-However, this fails for these dynamics. The continuous-time attention ODE does **not**
-push all tokens to the same point — it pushes them to cluster in the sense of the
-second-order parameter $R_2$. In the 2D case ($d=2$, tokens on $\mathbb{S}^1$), the
-order parameter tracked by the OA reduction is
+# However, this fails for these dynamics. The continuous-time attention ODE does **not**
+# push all tokens to the same point — it pushes them to cluster in the sense of the
+# second-order parameter $R_2$. In the 2D case ($d=2$, tokens on $\mathbb{S}^1$), the
+# order parameter tracked by the OA reduction is
 
-$$R_2(t) = \frac{1}{n} \sum_{j=1}^n e^{2i\theta_j},$$
+# $$R_2(t) = \frac{1}{n} \sum_{j=1}^n e^{2i\theta_j},$$
 
-not $R_1 = \frac{1}{n}\sum e^{i\theta_j}$. The factor of $2$ in the exponent means
-the dynamics are $\pi$-periodic in $\theta$: a token at angle $\theta$ and a token at
-$\theta + \pi$ are treated as **identical** by $R_2$, even though as vectors on
-$\mathbb{S}^1$ they are antipodal ($\langle x_i, x_j \rangle = -1$). Full clustering
-in the $R_2$ sense means tokens split into groups at $\theta^*$ and $\theta^* + \pi$,
-so the mean raw cosine similarity is exactly $0$ even when the system is perfectly
-clustered. This is precisely why earlier plots showed a flat line at $0$ regardless
-of parameters.
+# not $R_1 = \frac{1}{n}\sum e^{i\theta_j}$. The factor of $2$ in the exponent means
+# the dynamics are $\pi$-periodic in $\theta$: a token at angle $\theta$ and a token at
+# $\theta + \pi$ are treated as **identical** by $R_2$, even though as vectors on
+# $\mathbb{S}^1$ they are antipodal ($\langle x_i, x_j \rangle = -1$). Full clustering
+# in the $R_2$ sense means tokens split into groups at $\theta^*$ and $\theta^* + \pi$,
+# so the mean raw cosine similarity is exactly $0$ even when the system is perfectly
+# clustered. This is precisely why earlier plots showed a flat line at $0$ regardless
+# of parameters.
 
-**The correct metric.**
-The right analogue of $|R_2| \to 1$ in dimension $d$ is to measure similarity between
-the rank-1 projection matrices $x_i x_i^\top$ rather than between the vectors $x_i$
-themselves. The Frobenius inner product between two such projections is
+# **The correct metric.**
+# The right analogue of $|R_2| \to 1$ in dimension $d$ is to measure similarity between
+# the rank-1 projection matrices $x_i x_i^\top$ rather than between the vectors $x_i$
+# themselves. The Frobenius inner product between two such projections is
 
-$$\langle x_i x_i^\top,\, x_j x_j^\top \rangle_F = \mathrm{tr}(x_i x_i^\top x_j x_j^\top) = \langle x_i, x_j \rangle^2.$$
+# $$\langle x_i x_i^\top,\, x_j x_j^\top \rangle_F = \mathrm{tr}(x_i x_i^\top x_j x_j^\top) = \langle x_i, x_j \rangle^2.$$
 
-This equals $1$ whether $x_i = x_j$ (aligned) or $x_i = -x_j$ (antipodal), and equals
-$0$ when the tokens are orthogonal. It is invariant under the sign flip $x \mapsto -x$
-that the dynamics treat as equivalent.
+# This equals $1$ whether $x_i = x_j$ (aligned) or $x_i = -x_j$ (antipodal), and equals
+# $0$ when the tokens are orthogonal. It is invariant under the sign flip $x \mapsto -x$
+# that the dynamics treat as equivalent.
 
-**What to look for on the graph.**
-- $\langle x_i, x_j \rangle^2 \to 1$: tokens are clustering (all aligning or forming
-  antipodal pairs), consistent with $|R_2| \to 1$.
-- $\langle x_i, x_j \rangle^2 \approx 1/d$: tokens remain approximately uniformly
-  spread on $\mathbb{S}^{d-1}$ — no clustering.
-- Oscillating $\langle x_i, x_j \rangle^2$: cyclic / Hamiltonian behavior
-  (Case 4 with $a < b$).
+# **What to look for on the graph.**
+# - $\langle x_i, x_j \rangle^2 \to 1$: tokens are clustering (all aligning or forming
+#   antipodal pairs), consistent with $|R_2| \to 1$.
+# - $\langle x_i, x_j \rangle^2 \approx 1/d$: tokens remain approximately uniformly
+#   spread on $\mathbb{S}^{d-1}$ — no clustering.
+# - Oscillating $\langle x_i, x_j \rangle^2$: cyclic / Hamiltonian behavior
+#   (Case 4 with $a < b$).
 
-The shaded band is $\pm 1$ standard deviation across all $\binom{n}{2}$ pairs.
-A narrow band near $1$ means tight single-cluster behavior; a wide band means tokens
-have split into multiple distinct clusters. The dashed blue line shows raw cosine
-similarity for reference — note how it stays near $0$ even when the squared version
-is near $1$, which is why we cannot use it as a clustering diagnostic here.
-    """
-)
+# The shaded band is $\pm 1$ standard deviation across all $\binom{n}{2}$ pairs.
+# A narrow band near $1$ means tight single-cluster behavior; a wide band means tokens
+# have split into multiple distinct clusters. The dashed blue line shows raw cosine
+# similarity for reference — note how it stays near $0$ even when the squared version
+# is near $1$, which is why we cannot use it as a clustering diagnostic here.
+#     """
+# )
 
-with st.expander("Pairwise cosine similarity distribution  (t=0 vs t=T)"):
-    fig2, ax3 = plt.subplots(figsize=(7, 4))
-    ax3.hist(cos2_sim_time[:, 0],  bins=40, alpha=0.6, color="steelblue", label="t=0")
-    ax3.hist(cos2_sim_time[:, -1], bins=40, alpha=0.6, color="tomato",    label=f"t={T}")
-    ax3.axvline(1.0, color='green', lw=1, linestyle='--', label='full clustering = 1')
-    ax3.set_xlabel(r"Squared cosine similarity $\langle x_i,x_j\rangle^2$")
-    ax3.set_ylabel("Count")
-    ax3.set_title("Clustering metric distribution: t=0 vs t=T")
-    ax3.legend()
-    ax3.grid(alpha=0.3)
-    st.pyplot(fig2)
+# with st.expander("Pairwise cosine similarity distribution  (t=0 vs t=T)"):
+#     fig2, ax3 = plt.subplots(figsize=(7, 4))
+#     ax3.hist(cos2_sim_time[:, 0],  bins=40, alpha=0.6, color="steelblue", label="t=0")
+#     ax3.hist(cos2_sim_time[:, -1], bins=40, alpha=0.6, color="tomato",    label=f"t={T}")
+#     ax3.axvline(1.0, color='green', lw=1, linestyle='--', label='full clustering = 1')
+#     ax3.set_xlabel(r"Squared cosine similarity $\langle x_i,x_j\rangle^2$")
+#     ax3.set_ylabel("Count")
+#     ax3.set_title("Clustering metric distribution: t=0 vs t=T")
+#     ax3.legend()
+#     ax3.grid(alpha=0.3)
+#     st.pyplot(fig2)
 
-with st.expander("Attention score matrices  (t=0 and t=T)"):
+# with st.expander("Attention score matrices  (t=0 and t=T)"):
+with st.expander("<x_i, x_j> matrices  (t=0 and t=T)"):
     fig3, axes3 = plt.subplots(1, 2, figsize=(12, 5))
     for ax_idx, (t_idx, t_label) in enumerate([(0, "t=0"), (-1, f"t={T}")]):
         Xt  = X_traj[:, :, t_idx]
-        raw = (Xt @ A.T) @ Xt.T
+        # raw = (Xt @ A.T) @ Xt.T
+        raw = Xt @ Xt.T
         if use_softmax:
-            raw_b = beta * raw
-            raw_b -= raw_b.max(axis=1, keepdims=True)
-            score_mat = np.exp(raw_b)
-            score_mat /= score_mat.sum(axis=1, keepdims=True)
-            title = f"Softmax attention weights ({t_label})"
+            # raw_b = beta * raw
+            # raw_b -= raw_b.max(axis=1, keepdims=True)
+            # score_mat = np.exp(raw_b)
+            # score_mat /= score_mat.sum(axis=1, keepdims=True)
+            # title = f"Softmax attention weights ({t_label})"
+            score_mat = raw
+            title = f"Softmax ({t_label})"
         else:
-            score_mat = beta * raw
-            title = f"Linear attention scores ({t_label})"
-        im = axes3[ax_idx].imshow(score_mat, cmap="viridis", aspect="auto")
-        axes3[ax_idx].set_title(title)
+            # score_mat = beta * raw
+            # title = f"Linear attention scores ({t_label})"
+            score_mat = raw
+            title = f"Linear ({t_label})"
+
+        # Check how uniform the matrix is
+        mat_std = score_mat.std()
+        mat_mean = score_mat.mean()
+        uniformity = mat_std / (abs(mat_mean) + 1e-12)
+
+        if uniformity < 1e-3:
+            # Matrix is essentially uniform — matplotlib would autoscale tiny
+            # numerical noise into fake structure. Fix vmin/vmax to show flat.
+            vmin = mat_mean - abs(mat_mean) * 0.01
+            vmax = mat_mean + abs(mat_mean) * 0.01
+            axes3[ax_idx].set_facecolor("white")
+            im = axes3[ax_idx].imshow(score_mat, cmap="viridis", aspect="auto",
+                                      vmin=vmin, vmax=vmax)
+            axes3[ax_idx].set_title(title + "\n[uniform — all entries ≈ {:.4f}]".format(mat_mean))
+        else:
+            im = axes3[ax_idx].imshow(score_mat, cmap="plasma", aspect="auto",
+                                      vmin=score_mat.min(), vmax=score_mat.max())
+            axes3[ax_idx].set_title(title)
+            # Annotate each cell with its value so all distinct weights are readable
+            # Only do this for small matrices (n <= 25) to avoid clutter
+            if score_mat.shape[0] <= 25:
+                for row in range(score_mat.shape[0]):
+                    for col in range(score_mat.shape[1]):
+                        axes3[ax_idx].text(
+                            col, row, f"{score_mat[row, col]:.3f}",
+                            ha="center", va="center", fontsize=4.5,
+                            color="white" if score_mat[row, col] < 0.5 * score_mat.max() else "black"
+                        )
+
         axes3[ax_idx].set_xlabel("token j")
         axes3[ax_idx].set_ylabel("token k")
         plt.colorbar(im, ax=axes3[ax_idx])
