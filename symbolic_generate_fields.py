@@ -1,3 +1,4 @@
+import numpy as np
 from sympy import Symbol, symbols, Matrix, Rational, N, simplify, Float, conjugate, substitution, im, re, exp, Abs
 #matrices are generated here
 v_syms  = symbols('v0:%d:%d' % (2,2))
@@ -59,19 +60,17 @@ f = Symbol("f", real=True)
 g = Symbol("g", real=True)
 h = Symbol("h", real=True)
 #formatting this to be more indicative of the matrix structure
-substitution_set = {V[0,0]: a, V[0,1]: b,
-                    V[1,0]:c, V[1,1]:d,
+substitution_set = {V[0,0]: 1, V[0,1]: 0,
+                    V[1,0]:0, V[1,1]:1,
 
-                    A[0, 0]: e, A[0, 1]: f,
-                    A[1, 0]: g, A[1, 1]: h}
+                    A[0, 0]: 1, A[0, 1]: 0,
+                    A[1, 0]: 0, A[1, 1]: 1}
 
 #print(f"Real part of ib_1 is:{re(1j*b1.subs(substitution_set))}")
 #print(f"abs(b2) is:{Abs(b2.subs(substitution_set))}")
-
-
 #print(f"H(t) = {H.subs(substitution_set)}")
 #print(f"Omega(t) = {Omega.subs(substitution_set)}")
 #print(f"field(t) = {field.subs(substitution_set)}")
-#print(f"dynamics(t) = {simplify(dynamics.subs(substitution_set))}")
-print(f"rhodot(t) = {rhodot.subs(substitution_set)}")
-print(f"phidot(t) = {phidot.subs(substitution_set)}")
+print(f"dynamics(t) = {simplify(dynamics.subs(substitution_set))}")
+#print(f"rhodot(t) = {rhodot.subs(substitution_set)}")
+#print(f"phidot(t) = {phidot.subs(substitution_set)}")

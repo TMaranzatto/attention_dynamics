@@ -1,17 +1,25 @@
 # app.py
+import math
 import os
+from itertools import cycle
+
 import streamlit as st
 import numpy as np
 from math import pi
+
+from matplotlib.colors import Normalize
 from scipy.integrate import solve_ivp
 from matplotlib.animation import FuncAnimation, PillowWriter
 import matplotlib.pyplot as plt
 from random import choice
 from sympy import (
     Symbol, symbols, Matrix, im, re, exp,
-    conjugate, simplify, lambdify
+    conjugate, simplify, lambdify, expand_complex, substitution
 )
 import time
+
+from sympy.printing.pretty.pretty_symbology import line_width
+
 st.set_page_config(page_title="Attention Dynamics", layout="wide")
 
 st.title("N particles on the unit circle — integration of (Eq. 2.6) and the WS parameters")
@@ -87,18 +95,27 @@ with st.sidebar:
     # OA ODE
     rho = symbols('ρ', real=True)
     phi = symbols('ϕ', real=True)
+    x, y = symbols('x, y', real=True)
+    R_order = x + 1j*y
     R1 = im(b1 * exp(2j * phi) + b2)
     R2 = im(b3 * exp(1j * phi))
     I1 = re(b1 * exp(2j * phi) + b2)
     I2 = re(b3 * exp(1j * phi))
     I3 = re(c1 * exp(1j * phi))
 
+
+    #cartesian Coordinates
     rhodot = 2 * beta * (1 - rho ** 2) * (R1 * rho + R2)
     phidot = 2 * beta * ((rho ** 2 + 1) * I1 + (rho ** 2 + 1) / rho * I2 + 2 * I3 * rho + re(c2))
-    # print(beta)
-# Helper: wrap angles to [-pi, pi]
+    #Polar Coordinates
+    BR_order = b1*R_order + b2*conjugate(R_order) + b3
+    CR_order = c1*R_order + conjugate(c1)*conjugate(R_order) + c2
+    R_orderdot = 2j * (BR_order * R_order**2 + CR_order*R_order + conjugate(BR_order))
+
+st.text(R_orderdot.subs(R_order, symbols('z')).simplify())
+# Helper: wrap angles to [0, 2pi]
 def wrap_angles(x):
-    return ((x + np.pi) % (2*np.pi)) - np.pi
+    return ((x + np.pi) % (2*np.pi))
 
 def make_ws_rhs():
     """Creates the WS ensemble from the data input by user"""
@@ -186,8 +203,12 @@ def WS_variables_from_angles(thetas):
 
 def random_thetas():
     # Random initial angles
-    rng = np.random.default_rng(int(st.session_state.seed) % (2**32))
-    thetas = rng.uniform(0, 2*np.pi, size=int(N))
+    rng = np.random.default_rng(int(st.session_state.seed) % (2 ** 32))
+    thetas = rng.uniform(0, 2 * np.pi, size=int(N))
+
+    # ADDED THIS LINE: Sort thetas so adjacent particles have continuous HSV colors
+    thetas = np.sort(thetas)
+
     WSs = WS_variables_from_angles(thetas)
     return thetas, WSs
 
@@ -204,6 +225,8 @@ def random_WSs():
 
 
 theta0, WS_variables = random_thetas()
+##KR CHANGE
+particle_colors = plt.cm.hsv(np.linspace(0, 1, int(N)))
 
 #
 # Integrate ORIGINAL DYNAMICS
@@ -219,9 +242,8 @@ except Exception as e:
     st.error(f"Error building or evaluating original RHS:\n{e}")
     st.stop()
 
-# Wrap angles to [-pi, pi] for plotting
+# Wrap angles to [0, 2pi] for plotting
 theta_path = wrap_angles(sol.y)  # shape (N, len(t_eval))
-
 #
 # Integrate WS DYNAMICS
 #
@@ -238,27 +260,25 @@ except Exception as e:
 
 total_ws_path = sol_ws.y  # shape (N, len(t_eval))
 
-for i in [0, 2]:
-    total_ws_path[i, :] = wrap_angles(total_ws_path[i, :])
-    THRESHOLD = 2 * np.pi - .1
-    # Calculate difference between consecutive y and x values
-    param_path = total_ws_path[i, :]
-    dy = np.diff(param_path)
+total_ws_path[2, :] = wrap_angles(total_ws_path[2, :])
+THRESHOLD = 2 * np.pi - .1
+# Calculate difference between consecutive y and x values
+param_path = total_ws_path[2, :]
+dy = np.diff(param_path)
 
-    # Create a masked array where the condition is not met
-    # The mask should align with the second point of each segment, so we need to offset it
-    # We add a False at the beginning of the mask to keep the first point
-    mask = np.abs(dy) > THRESHOLD
-    full_mask = np.insert(mask, 0, False)  # Aligns mask with y array length
-    # Rewrite the y array with NaNs where the slope is too high
-    total_ws_path[i, :] = np.where(full_mask, np.nan, param_path)
+# Create a masked array where the condition is not met
+# The mask should align with the second point of each segment, so we need to offset it
+# We add a False at the beginning of the mask to keep the first point
+mask = np.abs(dy) > THRESHOLD
+full_mask = np.insert(mask, 0, False)  # Aligns mask with y array length
+# Rewrite the y array with NaNs where the slope is too high
+total_ws_path[2, :] = np.where(full_mask, np.nan, param_path)
 
-
-
+#-----------------------------------------------------------------------------------------------
 # PLOT EVERYTHING
 #start with WS, because we need tracers later.  This is only displayed under a clikcable bar..
 fig3, ax3 = plt.subplots(3, 1, figsize=(8, 8), sharex=True)
-ax3[0].plot(sol_ws.t, total_ws_path[0])
+ax3[0].plot(sol_ws.t, total_ws_path[0], linewidth = 2, color= 'black')
 ax3[0].set_ylabel("$\gamma$(t)")
 ax3[0].set_ylim(0, 1)
 ax3[0].grid(alpha=0.3)
@@ -277,26 +297,37 @@ mask = np.abs(dy) > np.pi - .5
 full_mask = np.insert(mask, 0, False)
 b_path = np.where(full_mask, np.nan, b)
 
-ax3[1].plot(sol_ws.t, a_path, color='teal', label = r'$\Phi$/2 + $\pi/2$')
-ax3[1].plot(sol_ws.t, b_path, color='cyan', label = r'$\Phi$/2 - $\pi/2$')
+ax3[1].plot(sol_ws.t, a_path, color='blue', label = r'$\Phi$/2 + $\pi/2$')
+ax3[1].plot(sol_ws.t, b_path, color='red', label = r'$\Phi$/2 - $\pi/2$')
 ax3[1].set_ylabel("Phase")
-ax3[1].set_yticks([-np.pi/2, 0, np.pi/2])
-ax3[1].set_yticklabels([r"$-\pi/2$", "0", r"$\pi/2$"])
-ax3[1].set_ylim(-pi, pi)
+ax3[1].set_yticks([k * np.pi/2 for k in range(5)])
+ax3[1].set_yticklabels(["0", r"$\pi/2$", r"$\pi$", r"$3\pi/2$", r"$2\pi$"])
+ax3[1].set_ylim(0, 2*pi)
 ax3[1].grid(alpha=0.3)
 ax3[1].legend()
 ax3[1].set_xlim(0, float(T))
 
-ax3[2].plot(sol_ws.t, total_ws_path[2])
+ax3[2].plot(sol_ws.t, total_ws_path[2], color='black')
 ax3[2].set_ylabel("η(t)")
-ax3[2].set_yticks([-np.pi / 2, 0, np.pi / 2])
-ax3[2].set_yticklabels([r"$-\pi/2$", "0", r"$\pi/2$"])
-ax3[2].set_ylim(-pi, pi)
+ax3[2].set_yticks([k * np.pi/2 for k in range(5)])
+ax3[2].set_yticklabels(["0", r"$\pi/2$", r"$\pi$", r"$3\pi/2$", r"$2\pi$"])
+ax3[2].set_ylim(0, 2*np.pi)
 ax3[2].grid(alpha=0.3)
 ax3[2].set_xlim(0, float(T))
 
 ax3[2].set_xlabel("t")
 
+cb_colors = [
+    "#000000",  # black
+    "#E69F00",  # orange
+    "#56B4E9",  # sky blue
+    "#009E73",  # bluish green
+    "#F0E442",  # yellow
+    "#0072B2",  # blue
+    "#D55E00",  # vermillion
+    "#CC79A7",  # reddish purple
+]
+color_cycle = cycle(cb_colors)
 
 #Now the original thetas
 fig, ax = plt.subplots(figsize=(10, 6))
@@ -313,62 +344,144 @@ for i in range(theta_path.shape[0]):
     full_mask = np.insert(mask, 0, False)  # Aligns mask with y array length
     # Create a new y array with NaNs where the slope is too high
     oscillator_path = np.where(full_mask, np.nan, oscillator_path)
-    ax.plot(sol.t, oscillator_path, linewidth=1)
+    color = next(color_cycle)
+    ax.plot(sol.t, oscillator_path, color=color, linewidth=1.5)
 
     #plot in WS subplot as well!!!
-    ax3[1].plot(sol.t, oscillator_path, linewidth=0.5, alpha=0.5, color="gray")
+    ##KR CHANGE
+    # MODIFIED THESE TWO LINES: Pass the matching sorted color to the plots
+    ax.plot(sol.t, oscillator_path, linewidth=1, color=particle_colors[i])
+    ax3[1].plot(sol.t, oscillator_path, linewidth=0.5, alpha=0.3, color=particle_colors[i])
 
 ax.set_xlim(0, float(T))
-ax.set_ylim(-np.pi, np.pi)
+ax.set_ylim(0, 2*np.pi)
 ax.set_xlabel("t")
 ax.set_ylabel("θ(t)")
 ax.set_title(f"{N} sample paths of angles (0 ≤ t ≤ {T})")
 ax.grid(alpha=0.3)
-yticks = [-np.pi, -np.pi/2, 0, np.pi/2, np.pi]
+yticks = [k * np.pi/2 for k in range(5)]
 ax.set_yticks(yticks)
-ax.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
+ax.set_yticklabels(["0", r"$\pi/2$", r"$\pi$", r"$3\pi/2$", r"$2\pi$"])
 
 st.pyplot(fig)
 
-#
-#
-#now compute and plot OA vector Field animation
-#
-#
+
+#now compute and plot OA vector Field, starting with cartesian coords
 rhodot_f = lambdify((rho, phi), rhodot, "numpy")
 phidot_f = lambdify((rho, phi), phidot, "numpy")
 
-rho_vals = np.linspace(.05, 1, 100)
-phi_vals = np.linspace(-np.pi, np.pi, 100)
+rho_vals = np.linspace(0, 1, 300)
+phi_vals = np.linspace(0, 2*np.pi, 300)
 RHO, PHI = np.meshgrid(rho_vals, phi_vals)
 
 RHOdot = rhodot_f(RHO, PHI)
 PHIdot = phidot_f(RHO, PHI)
 if type(RHOdot) == int:
-    RHOdot = RHOdot * np.ones([100,100])
+    RHOdot = RHOdot * np.ones([300,300])
 if type(PHIdot) == int:
-    PHIdot = PHIdot * np.ones([100,100])
+    PHIdot = PHIdot * np.ones([300,300])
 speed = np.sqrt(RHOdot**2 + PHIdot**2)
-lw = 5*speed / speed.max()
+speed = np.nan_to_num(speed, nan=0, posinf=0, neginf=0)
+speed = np.clip(speed, 0, np.percentile(speed, 90))
+#print(np.average(speed), np.min(speed), np.max(speed))
 figOA, axOA = plt.subplots(figsize=(10, 6))
 axOA.streamplot(
     RHO, PHI,
     RHOdot, PHIdot,
     density= .5,
-    linewidth=.5,
+    linewidth=1.5,
+    color= speed,
+    cmap='coolwarm',
     broken_streamlines=False,
-    color = 'k'
+    arrowsize=1.5
 )
-rho_min, rho_max = 0.05, 1
+rho_min, rho_max = 0, 1
 axOA.set_xlabel(r"$\rho(t)$")
 axOA.set_ylabel(r"$\phi(t)$")
 axOA.set_xlim(rho_min, rho_max)
-axOA.set_ylim(-np.pi, np.pi)
+axOA.set_ylim(0, 2*np.pi)
 axOA.set_title("OA phase space vector field")
 axOA.grid(False)
 axOA.set_yticks(yticks)
-axOA.set_yticklabels([r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"])
+axOA.set_yticklabels(["0", r"$\pi/2$", r"$\pi$", r"$3\pi/2$", r"$2\pi$"])
 st.pyplot(figOA)
+
+
+#now the imaginary version
+u_sym, v_sym = expand_complex(R_orderdot).as_real_imag()
+u1 = lambdify((x, y), u_sym, 'numpy')
+v1 = lambdify((x, y), v_sym, 'numpy')
+
+# Grid
+x_vals = np.linspace(-1, 1, 500)
+y_vals = np.linspace(-1, 1, 500)
+X, Y = np.meshgrid(x_vals, y_vals)
+
+# Vector field
+U1 = u1(X, Y)
+V1 = v1(X, Y)
+
+# Disc mask
+mask = X**2 + Y**2 <= 1 - 0.05
+U_masked = np.where(mask, U1, np.nan)
+V_masked = np.where(mask, V1, np.nan)
+
+# Speed (for coloring)
+speed = np.sqrt(U_masked**2 + V_masked**2)
+#speed = np.nan_to_num(speed, nan=0, posinf=0, neginf=0)
+# --- NORMALIZE ARROWS ---
+eps = 1e-12
+U_norm = U_masked / (speed + eps)
+V_norm = V_masked / (speed + eps)
+
+# Subsample for quiver
+step = 10
+Xq = X[::step, ::step]
+Yq = Y[::step, ::step]
+jitter_scale = (x_vals[1] - x_vals[0]) * step * 0.3
+rng = np.random.default_rng(seed=None)  # fixed seed later for reproducibility
+Xq_jitter = Xq + rng.uniform(-jitter_scale, jitter_scale, size=Xq.shape)
+Yq_jitter = Yq + rng.uniform(-jitter_scale, jitter_scale, size=Yq.shape)
+Uq = U_norm[::step, ::step]
+Vq = V_norm[::step, ::step]
+Sq = speed[::step, ::step]
+
+# Keep valid points
+valid = np.isfinite(Uq) & np.isfinite(Vq) & np.isfinite(Sq)
+Xqv = Xq_jitter[valid]
+Yqv = Yq_jitter[valid]
+Uqv = Uq[valid]
+Vqv = Vq[valid]
+Sqv = Sq[valid]
+
+# Plot
+figOAim, axOAim = plt.subplots(figsize=(10, 10))
+
+norm = Normalize(vmin=np.nanmin(Sqv), vmax=np.nanmax(Sqv))
+q = axOAim.quiver(
+    Xqv, Yqv,
+    Uqv, Vqv,
+    Sqv,
+    cmap='coolwarm',   # blue = slow, red = fast
+    norm=norm,
+    angles='xy',
+    scale_units='xy',
+    scale=20,          # controls overall arrow size
+    width=0.004
+)
+
+# Disc boundary
+theta = np.linspace(0, 2*np.pi, 400)
+axOAim.plot(np.cos(theta), np.sin(theta), color='k', linewidth=2)
+axOAim.plot(1/100*np.cos(theta), 1/100*np.sin(theta), color='k', linewidth=2)
+axOAim.axis('off')
+axOAim.set_xlim(-1.5, 1.5)
+axOAim.set_ylim(-1.1, 1.1)
+axOAim.set_aspect('equal')
+axOAim.set_title("Complex OA phase space vector field")
+
+st.pyplot(figOAim)
+
 
 
 st.markdown("---")
@@ -379,7 +492,7 @@ if st.button("Generate Flow Animation"):
     N_OA = 400
 
     rho_p = np.random.uniform(rho_min, rho_max, N_OA)
-    phi_p = np.random.uniform(-np.pi, np.pi, N_OA)
+    phi_p = np.random.uniform(0, 2*np.pi, N_OA)
 
     dt = 0.05
 
@@ -404,10 +517,10 @@ if st.button("Generate Flow Animation"):
     # 4. Animate
     with st.spinner("Generating Flow Animation..."):
         ani = FuncAnimation(figOA, update, frames=50, interval=100, blit=False)
-        
+
         # Robust Path Construction
         save_path_flow = os.path.join(os.getcwd(), 'flow_anim.gif')
-        
+
         ani.save(save_path_flow, writer=PillowWriter(fps=10))
         st.image(save_path_flow)
 
@@ -423,11 +536,12 @@ with st.expander("Show order-parameters"):
     R1_t = np.mean(np.exp(1j * sol.y), axis=0)
     R2_t = np.mean(np.exp(2j * sol.y), axis=0)
     fig2, ax2 = plt.subplots(2, 1, figsize=(8, 5), sharex=True)
-    ax2[0].plot(sol.t, np.abs(R1_t))
+    ax2[0].plot(sol.t, np.abs(R1_t), color="k")
+    ax2[0].set_xlabel("t")
     ax2[0].set_ylabel("$|R_1(t)|$")
     ax2[0].set_ylim(0, 1)
     ax2[0].grid(alpha=0.3)
-    ax2[1].plot(sol.t, np.abs(R2_t))
+    ax2[1].plot(sol.t, np.abs(R2_t), color="k")
     ax2[1].set_ylabel("$|R_2(t)|$")
     ax2[1].set_xlabel("t")
     ax2[1].set_ylim(0, 1)
@@ -445,7 +559,7 @@ st.header("Dynamics Animation")
 
 # --- Speed Controls ---
 anim_duration = st.slider(
-    "Slow-down", 
+    "Slow-down",
     min_value=float(T), max_value=60.0, value=float(T), step=1.0,
     help="Set longer duration for slow-motion (detailed view), shorter for fast-forward."
 )
@@ -458,40 +572,44 @@ if st.button("Generate Animation"):
     # sol.y has shape (N, frames)
     R1_complex = np.mean(np.exp(1j * sol.y), axis=0)
     R2_complex = np.mean(np.exp(2j * sol.y), axis=0)
-    
+
     # 2. CALCULATE SAMPLING
     total_anim_frames = int(anim_duration * anim_fps)
     step = max(1, int(len(sol.t) / total_anim_frames))
     anim_indices = np.arange(0, len(sol.t), step)
-    
+
     # 3. SETUP FIGURES
     # Create two side-by-side plots with equal aspect ratio
     fig_anim, (ax_particles, ax_order) = plt.subplots(1, 2, figsize=(12, 6))
-    
+
     # --- Left Plot: Particles on Unit Circle ---
     ax_particles.set_xlim(-1.2, 1.2)
     ax_particles.set_ylim(-1.2, 1.2)
     ax_particles.set_aspect('equal')
     ax_particles.set_title("Particle Positions")
     ax_particles.axis('off')
-    
+
     # Static circle for particles
     circle_left = plt.Circle((0, 0), 1, color='lightgray', fill=False, linestyle='--', linewidth=2)
     ax_particles.add_artist(circle_left)
-    
-    # Particle colors
-    particle_colors = plt.cm.hsv(np.linspace(0, 1, int(N)))
-    
+
+    ##KR CHANGE
+    # # Particle colors
+    # particle_colors = plt.cm.hsv(np.linspace(0, 1, int(N)))
+
     # Initialize particles (Frame 0)
     x0 = np.cos(sol.y[:, 0])
     y0 = np.sin(sol.y[:, 0])
-    scat_particles = ax_particles.scatter(x0, y0, c=particle_colors, s=60, edgecolors='k', zorder=3)
+    ##KR CHANGE
+    # scat_particles = ax_particles.scatter(x0, y0, c=particle_colors, s=60, edgecolors='k', zorder=3)
+    # Applied continuous colors and 0.8 transparency (alpha=0.2) to animated nodes
+    scat_particles = ax_particles.scatter(x0, y0, c=particle_colors, s=60, edgecolors='k', zorder=3, alpha=0.8)
 
     # --- Right Plot: Complex Order Parameters (R1 & R2) ---
     ax_order.set_xlim(-1.2, 1.2)
     ax_order.set_ylim(-1.2, 1.2)
     ax_order.set_aspect('equal')
-    ax_order.set_title("Order Parameters (Complex Plane)")
+    ax_order.set_title(r'$R_2$')
     ax_order.axis('off')
 
     # Static circle for Order Parameters
@@ -507,44 +625,44 @@ if st.button("Generate Animation"):
 
     # Initialize Dynamic Elements for R1 (Orange) and R2 (Blue)
     # R1 Setup
-    line_R1, = ax_order.plot([], [], color='orange', lw=2, label=r'$R_1$')
+    #line_R1, = ax_order.plot([], [], color='orange', lw=2, label=r'$R_1$')
     point_R1, = ax_order.plot([], [], 'o', color='orange', markeredgecolor='k', markersize=8)
-    
+
     # R2 Setup
-    line_R2, = ax_order.plot([], [], color='blue', lw=2, label=r'$R_2$')
+    line_R2, = ax_order.plot([], [], color='blue', lw=2)
     point_R2, = ax_order.plot([], [], 'o', color='blue', markeredgecolor='k', markersize=8)
-    
+
     # Add Legend to distinguish R1 and R2
     ax_order.legend(loc='upper right', frameon=False)
 
     # 4. UPDATE FUNCTION
     def update(frame_idx):
         # -- Update Left Plot (Particles) --
-        current_angles = sol.y[:, frame_idx] 
+        current_angles = sol.y[:, frame_idx]
         scat_particles.set_offsets(np.column_stack([np.cos(current_angles), np.sin(current_angles)]))
-        
+
         # -- Update Right Plot (Order Parameters) --
         # Get history up to this frame for the "tail"
         # We slice using the step to match the animation frames or just raw indices up to frame_idx
         # Using raw indices is smoother for the line history
-        r1_hist = R1_complex[:frame_idx+1]
+        #r1_hist = R1_complex[:frame_idx+1]
         r2_hist = R2_complex[:frame_idx+1]
 
         # Update R1 (Orange)
-        line_R1.set_data(np.real(r1_hist), np.imag(r1_hist))
-        point_R1.set_data([np.real(R1_complex[frame_idx])], [np.imag(R1_complex[frame_idx])])
+        #line_R1.set_data(np.real(r1_hist), np.imag(r1_hist))
+        #point_R1.set_data([np.real(R1_complex[frame_idx])], [np.imag(R1_complex[frame_idx])])
 
         # Update R2 (Blue)
         line_R2.set_data(np.real(r2_hist), np.imag(r2_hist))
         point_R2.set_data([np.real(R2_complex[frame_idx])], [np.imag(R2_complex[frame_idx])])
-        
-        return scat_particles, line_R1, point_R1, line_R2, point_R2
+
+        return scat_particles, line_R2, point_R2
 
     # 5. RENDER
     with st.spinner(f"Rendering {len(anim_indices)} frames at {anim_fps} FPS..."):
         ani = FuncAnimation(fig_anim, update, frames=anim_indices, blit=False)
         gif_path = os.path.join(os.getcwd(), 'particle_evolution.gif')
         ani.save(gif_path, writer=PillowWriter(fps=anim_fps))
-        
+
         st.success("Animation generated!")
         st.image(gif_path)

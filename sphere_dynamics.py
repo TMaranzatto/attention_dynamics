@@ -48,7 +48,7 @@ ax.set_box_aspect([1, 1, 1])
 ax.set(xlim=(-1.2, 1.2), ylim=(-1.2, 1.2), zlim=(-1.2, 1.2))
 
 # Remove axis lines, labels, and grid for a clean appearance
-ax.set_frame_on(False)
+#ax.set_frame_on(False)
 ax.set_xticks([])
 ax.set_yticks([])
 ax.set_zticks([])
@@ -83,7 +83,7 @@ def assign_colors(cluster_labels, cluster_sizes, isCluster = False):
             cluster_color_map[cluster] = cmap[i]
         return np.array([cluster_color_map[label] for label in cluster_labels])
     else:
-        return np.array([(1,0,0,.5) for _ in range(N//2)] + [(0,1,0,.5) for _ in range(N//2)])
+        return np.array([(0,0,0,.5) for _ in range(N)])
 
 
 colors = assign_colors(cluster_labels, cluster_sizes, isCluster=StochasticBM_Test)
@@ -224,17 +224,19 @@ if __name__ == "__main__":
     # Below is the interactive visualization code.
     q = np.diag([1,1,1])
     k = np.diag([1,1,1])
-    v = np.diag([1,1,1])
+    v = np.asarray([[0,1,0],
+                   [-1,0,0],
+                   [0,0,0]])
     sigma_identity = np.vectorize(lambda x: x)
     w = np.identity(3)
     a = np.identity(3)
     b = np.zeros(3)
 
-    nodes = [N//2, N//2]
-    p = 0.6
-    probs = [[p, 1-p], [1-p, p]]
-    G = stochastic_block_model(nodes, probs)
-    A = 2*to_numpy_array(G) - np.ones((N,N)) - np.identity(N)
+    nodes = [N]
+    #p = 0.6
+    #probs = [[p, 1-p], [1-p, p]]
+    #G = stochastic_block_model(nodes, probs)
+    A = np.identity(N)
     # Set up the animation, put your update rule as second argument
     ani = animation.FuncAnimation(fig, partial(feedforward_attention_3D, Q=q, K=k, V=v, A=A, w=w, sigma=sigma_identity, a=a, b=b), interval=50, blit=False)
 

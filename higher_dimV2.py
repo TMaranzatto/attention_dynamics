@@ -36,6 +36,7 @@ Stiffness can arise if tokens rapidly cluster together, causing large gradients 
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.stats import ortho_group
+from scipy.stats import special_ortho_group
 import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
@@ -135,12 +136,24 @@ For $d > 2$: $V$ is block-diagonal with $\lfloor d/2 \rfloor$ identical blocks.
         else:
             st.error(f"a = b → **bifurcation point**")
         A     = np.eye(d)
+
+        #full rotation dynamcis in V
+        #I0 = np.eye(d//2)
+        #Z0 = np.zeros((d//2, d//2))
+        #V = np.block([
+        #    [Z0, I0],
+        #    [-I0, Z0]
+        #])
+        V = special_ortho_group.rvs(d)
+
+        '''
         block = np.array([[a_param, b_param], [-b_param, -a_param]])
         V     = np.zeros((d, d))
         for i in range(0, d - 1, 2):
             V[i:i+2, i:i+2] = block
         if d % 2 == 1:
-            V[d-1, d-1] = a_param
+            V[d-1, d-1] = 0
+        '''
 
     else:  # Random
         st.markdown(r"""
@@ -229,7 +242,7 @@ def make_rhs(A, V, n, d, beta, use_softmax):
             s = beta * scores
             s -= s.max(axis=1, keepdims=True)
             f_scores = np.exp(s)
-            Z = f_scores.sum(axis=1, keepdims=True)
+            Z = float(n)
         else:
             f_scores = beta * scores
             Z = float(n)
@@ -315,71 +328,36 @@ ax.fill_between(sol.t, mean_cos2 - std_cos2, mean_cos2 + std_cos2,
 # Also show raw cosine sim as thin dashed for reference
 ax.plot(sol.t, mean_cos, color="steelblue", lw=1, linestyle='--',
         alpha=0.6, label=r"mean $\langle x_i,x_j\rangle$ (raw, for ref)")
-ax.axhline(1.0, color='green', lw=0.8, linestyle='--', label='full clustering = 1')
-ax.axhline(0.0, color='gray',  lw=0.8, linestyle=':')
+#ax.axhline(1.0, color='green', lw=0.8, linestyle='--', label='full clustering = 1')
+#ax.axhline(0.0, color='gray',  lw=0.8, linestyle=':')
 ax.set_xlabel("t")
 ax.set_ylabel(r"$\langle x_i, x_j\rangle^2$")
 ax.set_title(f"Clustering metric — {case}")
 ax.set_xlim(0, T)
-ax.set_ylim(-0.05, 1.05)
+#ax.set_ylim(-0.05, 1.05)
 ax.legend(fontsize=8)
 ax.grid(alpha=0.3)
 
 plt.tight_layout()
 st.pyplot(fig1)
 
-st.markdown(
-    r"""
-#### What this graph shows and why we plot it this way
+with st.expander("Show Energy"):
+    fig0, ax0 = plt.subplots(figsize=(7, 4))
+    st.info(X_traj.shape)
+    def f(X):
+        #0-axis are points, 1-axis is coords
+        sum = 0.
+        for i in range(n_tokens):
+            for j in range(n_tokens):
+                sum += np.exp(beta * np.dot(X[i], X[j]))
+        return sum/(2*beta*(n_tokens**2))
 
-**The naive approach — and why it fails.**
-The most natural way to measure whether tokens are clustering is to track the raw
-pairwise cosine similarity $\langle x_i, x_j \rangle$ between every pair of tokens.
-If all tokens collapse to the same point on $\mathbb{S}^{d-1}$, every pairwise cosine
-similarity equals $1$, and the mean would rise to $1$ over time.
-
-However, this fails for these dynamics. The continuous-time attention ODE does **not**
-push all tokens to the same point — it pushes them to cluster in the sense of the
-second-order parameter $R_2$. In the 2D case ($d=2$, tokens on $\mathbb{S}^1$), the
-order parameter tracked by the OA reduction is
-
-$$R_2(t) = \frac{1}{n} \sum_{j=1}^n e^{2i\theta_j},$$
-
-not $R_1 = \frac{1}{n}\sum e^{i\theta_j}$. The factor of $2$ in the exponent means
-the dynamics are $\pi$-periodic in $\theta$: a token at angle $\theta$ and a token at
-$\theta + \pi$ are treated as **identical** by $R_2$, even though as vectors on
-$\mathbb{S}^1$ they are antipodal ($\langle x_i, x_j \rangle = -1$). Full clustering
-in the $R_2$ sense means tokens split into groups at $\theta^*$ and $\theta^* + \pi$,
-so the mean raw cosine similarity is exactly $0$ even when the system is perfectly
-clustered. This is precisely why earlier plots showed a flat line at $0$ regardless
-of parameters.
-
-**The correct metric.**
-The right analogue of $|R_2| \to 1$ in dimension $d$ is to measure similarity between
-the rank-1 projection matrices $x_i x_i^\top$ rather than between the vectors $x_i$
-themselves. The Frobenius inner product between two such projections is
-
-$$\langle x_i x_i^\top,\, x_j x_j^\top \rangle_F = \mathrm{tr}(x_i x_i^\top x_j x_j^\top) = \langle x_i, x_j \rangle^2.$$
-
-This equals $1$ whether $x_i = x_j$ (aligned) or $x_i = -x_j$ (antipodal), and equals
-$0$ when the tokens are orthogonal. It is invariant under the sign flip $x \mapsto -x$
-that the dynamics treat as equivalent.
-
-**What to look for on the graph.**
-- $\langle x_i, x_j \rangle^2 \to 1$: tokens are clustering (all aligning or forming
-  antipodal pairs), consistent with $|R_2| \to 1$.
-- $\langle x_i, x_j \rangle^2 \approx 1/d$: tokens remain approximately uniformly
-  spread on $\mathbb{S}^{d-1}$ — no clustering.
-- Oscillating $\langle x_i, x_j \rangle^2$: cyclic / Hamiltonian behavior
-  (Case 4 with $a < b$).
-
-The shaded band is $\pm 1$ standard deviation across all $\binom{n}{2}$ pairs.
-A narrow band near $1$ means tight single-cluster behavior; a wide band means tokens
-have split into multiple distinct clusters. The dashed blue line shows raw cosine
-similarity for reference — note how it stays near $0$ even when the squared version
-is near $1$, which is why we cannot use it as a clustering diagnostic here.
-    """
-)
+    energies = np.zeros(frames)
+    for frame in range(frames):
+        energies[frame] = f(X_traj[:,:,frame])
+    ax0.plot(sol.t, energies)
+    plt.tight_layout()
+    st.pyplot(fig0)
 
 with st.expander("Pairwise cosine similarity distribution  (t=0 vs t=T)"):
     fig2, ax3 = plt.subplots(figsize=(7, 4))
