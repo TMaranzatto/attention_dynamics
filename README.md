@@ -8,7 +8,7 @@ This repository contains numerical simulations and analysis of attention dynamic
 
 The core investigation studies the clustering behavior of $n$ tokens initialized on a sphere $\mathbb{S}^{d-1}$ under the continuous-time self-attention update equations:
 
-$$\dot{x}_k(t) = P^\perp_{x_k(t)}\!\left(\frac{1}{n}\sum_{j=1}^n h\!\left(\beta\langle Ax_k(t), x_j(t)\rangle\right) V x_j(t)\right), \quad k = 1,\dots,n$$
+$$\dot{x}_k(t) = P^\perp_{x_k(t)}\left(\frac{1}{n}\sum_{j=1}^n h\left(\beta\langle Ax_k(t), x_j(t)\rangle\right) V x_j(t)\right), \quad k = 1,\dots,n$$
 
 where:
 - $x_k \in \mathbb{S}^{d-1}$ are token embeddings on the unit sphere
@@ -77,7 +77,7 @@ All token trajectories are integrated using **SciPy's `solve_ivp` solver** with 
 - **Method**: RK45 (Runge-Kutta order 4/5)
   - Error controlled by fourth-order estimate
   - Steps performed at fifth-order for accuracy
-- **Tolerances**: 
+- **Tolerances**:
   - Absolute tolerance: `atol = 1e-8`
   - Relative tolerance: `rtol = 1e-6`
 - **Initial conditions**: Tokens uniformly distributed on $\mathbb{S}^{d-1}$ via normalized Gaussian draws
@@ -96,30 +96,37 @@ To quantify token clustering behavior, we track multiple complementary metrics:
 
 **Primary Clustering Metrics:**
 
-- **$\mathcal{\hat{R}}_2(t)$ — Mean-squared cosine similarity** (primary diagnostic)
-  $$\mathcal{\hat{R}}_2(t) := \frac{1}{\binom{n}{2}} \sum_{j < k} \langle x_j(t), x_k(t)\rangle^2 \in [0,1]$$
-  - Equals 1 when all tokens collapse to antipodal points $\{x^*, -x^*\}$ (allows unequal cluster sizes)
-  - Includes complete consensus ($x_1 = x_2 = \cdots = x_n = x^*$)
-  - Insensitive to sign: $x^*$ and $-x^*$ both yield $\mathcal{\hat{R}}_2(t) = 1$
+**$\hat{\mathcal{R}}_2(t)$ — Mean-squared cosine similarity** (primary diagnostic)
 
-- **$\mathcal{\hat{R}}_1(t)$ — Mean cosine similarity** (distinguishes cluster configurations)
-  $$\mathcal{\hat{R}}_1(t) := \frac{1}{\binom{n}{2}} \sum_{j < k} \langle x_j(t), x_k(t)\rangle \in [0,1]$$
-  - Equals 1 only if all tokens collapse to a single point $x^*$
-  - Distinguishes **single-point consensus** ($\mathcal{\hat{R}}_1(t) = 1, \mathcal{\hat{R}}_2(t) = 1$) from **antipodal clustering** ($\mathcal{\hat{R}}_1(t) \approx 0, \mathcal{\hat{R}}_2(t) = 1$)
+$$\hat{\mathcal{R}}_2(t) := \frac{1}{\binom{n}{2}} \sum_{j < k} \langle x_j(t), x_k(t)\rangle^2 \in [0,1]$$
+
+- Equals 1 when all tokens collapse to antipodal points $\{{x^\star, -x^\star\}}$ (allows unequal cluster sizes)
+- Includes complete consensus ($x_1 = x_2 = \cdots = x_n = x^*$)
+- Insensitive to sign: $x^{\star}$ and $-{x^{\star}}$ both yield $\hat{\mathcal{R}}_2(t) = 1$
+
+**$\hat{\mathcal{R}}_1(t)$ — Mean cosine similarity** (distinguishes cluster configurations)
+
+$$\hat{\mathcal{R}}_1(t) := \frac{1}{\binom{n}{2}} \sum_{j < k} \langle x_j(t), x_k(t)\rangle \in [0,1]$$
+
+- Equals 1 only if all tokens collapse to a single point $x^*$
+- Distinguishes **single-point consensus** ($\hat{\mathcal{R}}_1(t) = 1, \hat{\mathcal{R}}_2(t) = 1$) from **antipodal clustering** ($\hat{\mathcal{R}}_1(t) \approx 0, \hat{\mathcal{R}}_2(t) = 1$)
 
 **Additional Diagnostics:**
 
-- **Gram Matrix** $G(t)$ with entries $G_{ij}(t) = \langle x_i(t), x_j(t)\rangle$
-  - Visualizes token configurations: block structure indicates antipodal clusters
-  - Positive diagonal/off-diagonal blocks = one cluster; mixed signs = two clusters
+**Gram Matrix** $G(t)$ with entries $G_{ij}(t) = \langle x_i(t), x_j(t)\rangle$
+- Visualizes token configurations: block structure indicates antipodal clusters
+- Positive diagonal/off-diagonal blocks = one cluster; mixed signs = two clusters
 
-- **Coordinate-wise Mean** for cyclicality detection
-  $$m_l(t) := \frac{1}{n}\sum_{j=1}^n x_j^{(l)}(t), \quad l=1,\dots,d$$
-  - Detects periodic oscillations: convergence of $m(t)$ indicates convergence of clusters
-  - Non-convergent $m(t)$ with clustered $\mathcal{\hat{R}}_2(t)$ indicates rotating/oscillating clusters
+**Coordinate-wise Mean** for cyclicality detection
+
+$$m_l(t) := \frac{1}{n}\sum_{j=1}^n x_j^{(l)}(t), \quad l=1,\dots,d$$
+
+- Detects periodic oscillations: convergence of $m(t)$ indicates convergence of clusters
+- Non-convergent $m(t)$ with clustered $\hat{\mathcal{R}}_2(t)$ indicates rotating/oscillating clusters
 
 **Interpretation Guide:**
-| Configuration | $\mathcal{\hat{R}}_1(t)$ | $\mathcal{\hat{R}}_2(t)$ | $m(t)$ Behavior | Cluster Type |
+
+| Configuration | $\hat{\mathcal{R}}_1(t)$ | $\hat{\mathcal{R}}_2(t)$ | $m(t)$ Behavior | Cluster Type |
 |---|---|---|---|---|
 | No clustering | $\approx 0$ | $\approx 0$ | Converges | Uniform distribution |
 | Antipodal clusters | $\approx 0$ | $\to 1$ | Converges | Two opposite poles |
@@ -162,33 +169,33 @@ The experiments reveal a critical qualitative difference:
 
 **Theoretical Prediction (2D LSA)**: Three regimes determined by spectral properties of $A$:
 - $\mathrm{tr}(A) > 0$ → antipodal clustering
-- $\mathrm{tr}(A) \leq 0$ and $\det(A) \leq 0$ → antipodal clustering  
+- $\mathrm{tr}(A) \leq 0$ and $\det(A) \leq 0$ → antipodal clustering
 - $(A+A^\top)/2 \prec 0$ → no clustering
 
 **Experimental Results (d=100, n=200):**
 
 #### Regime 1.1: $\mathrm{tr}(A) > 0$
-- **LSA**: Converges to **antipodal clusters** ($\mathcal{\hat{R}}_2(t) \to 1$, $\mathcal{\hat{R}}_1(t) \to 0$)
+- **LSA**: Converges to **antipodal clusters** ($\hat{\mathcal{R}}_2(t) \to 1$, $\hat{\mathcal{R}}_1(t) \to 0$)
   - Gram matrix shows 2×2 block structure with balanced cluster sizes
   - Clusters form in approximately 35 time units
-- **USA**: Converges to **single point** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Converges to **single point** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - Faster convergence than LSA
   - Qualitatively different: single cluster instead of antipodal
 
 #### Regime 1.2: $\mathrm{tr}(A) \leq 0$ and $\det(A) \leq 0$
-- **LSA**: Converges to **antipodal clusters** ($\mathcal{\hat{R}}_2(t) \to 1$, $\mathcal{\hat{R}}_1(t) \to 0$)
+- **LSA**: Converges to **antipodal clusters** ($\hat{\mathcal{R}}_2(t) \to 1$, $\hat{\mathcal{R}}_1(t) \to 0$)
   - Qualitatively matches Regime 1.1
   - **Slower convergence**: ~130 time units (vs 35 in Regime 1.1)
   - More balanced cluster distribution
-- **USA**: Converges to **single point** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Converges to **single point** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - Similar single-point behavior across regimes
   - More uniform convergence speed than LSA
 
 #### Regime 1.3: $(A+A^\top)/2 \prec 0$ (Partial Synchronization)
-- **LSA**: **No clustering** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \approx 0$)
+- **LSA**: **No clustering** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \approx 0$)
   - Tokens converge without forming clusters
   - Gram matrix shows near-zero off-diagonal entries
-- **USA**: Converges to **single point** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Converges to **single point** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - **Clustering occurs despite LSA non-clustering prediction**
   - First evidence of LSA ⊄ USA behavior difference
 
@@ -205,27 +212,27 @@ The experiments reveal a critical qualitative difference:
 **Experimental Results (d=100, n=200):**
 
 #### Regime 2.1: $\lambda_{\max}(V) > 0$
-- **LSA**: Converges to **antipodal clusters** ($\mathcal{\hat{R}}_2(t) \to 1$, $\mathcal{\hat{R}}_1(t) \to 0$)
+- **LSA**: Converges to **antipodal clusters** ($\hat{\mathcal{R}}_2(t) \to 1$, $\hat{\mathcal{R}}_1(t) \to 0$)
   - Fast convergence (~40 time units)
   - Gram matrix: balanced 2×2 block structure
-- **USA**: Converges to **single point** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Converges to **single point** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - Significantly faster than LSA
   - Different cluster configuration despite same $\lambda_{\max}(V)$ condition
 
 #### Regime 2.2: $\lambda_{\max}(V) = 0$ (Boundary Case)
 - **LSA**: Converges to **antipodal clusters** (very slow)
-  - $\mathcal{\hat{R}}_2(t) \to 1$ but requires **~150,000 time units**
+  - $\hat{\mathcal{R}}_2(t) \to 1$ but requires **~150,000 time units**
   - Convergence speed drops **orders of magnitude** from positive eigenvalue regime
   - Gram matrix confirms antipodal structure
-- **USA**: Also converges to **antipodal clusters** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Also converges to **antipodal clusters** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - **Only case where USA clusters antipodally** (not single point)
   - Indicates boundary behavior differs from interior regimes
 
 #### Regime 2.3: $\lambda_{\max}(V) < 0$
-- **LSA**: **No clustering** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 0$)
+- **LSA**: **No clustering** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 0$)
   - Coordinate-wise means $m_l(t)$ converge across all dimensions
   - Tokens converge but remain uniformly distributed
-- **USA**: **No clustering** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 0$)
+- **USA**: **No clustering** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 0$)
   - Both models agree: convergence without cluster formation
 
 **Key Insights**:
@@ -245,13 +252,13 @@ The experiments reveal a critical qualitative difference:
 
 **Experimental Results:**
 
-- **LSA**: Forms **antipodal clusters** ($\mathcal{\hat{R}}_2(t) \to 1$, $\mathcal{\hat{R}}_1(t) \to 0$)
+- **LSA**: Forms **antipodal clusters** ($\hat{\mathcal{R}}_2(t) \to 1$, $\hat{\mathcal{R}}_1(t) \to 0$)
   - Gram matrix: 2×2 block structure preserved
   - **Coordinate-wise means $m_l(t)$ oscillate periodically**
-  - Clusters rotate: don't reach static equilibrium despite $\mathcal{\hat{R}}_2(t)$ convergence
+  - Clusters rotate: don't reach static equilibrium despite $\hat{\mathcal{R}}_2(t)$ convergence
   - Rotation is **collective** across all coordinate planes
 
-- **USA**: Forms **single cluster** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Forms **single cluster** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - Single consensus point but still exhibits **periodic oscillations**
   - All tokens rotate around a common axis
 
@@ -259,9 +266,13 @@ The experiments reveal a critical qualitative difference:
 
 ---
 
-### Case 4: $A = I$, $V$ Hamiltonian  
+### Case 4: $A = I$, $V$ Hamiltonian
 
-**Setup (d=100)**: $V = \mathrm{blkdiag}\left(\begin{pmatrix}a & b \\ -b & -a\end{pmatrix}, \ldots\right)$ with $\lfloor d/2 \rfloor$ blocks
+**Setup (d=100)**:
+
+$$V = \mathrm{blkdiag}\left(\begin{pmatrix}a & b \\ -b & -a\end{pmatrix}, \ldots\right)$$
+
+with $\lfloor d/2 \rfloor$ blocks
 
 **Theoretical Prediction (2D LSA)**: Bifurcation between clustering and oscillation:
 - $a > b$ → antipodal clustering
@@ -271,25 +282,25 @@ The experiments reveal a critical qualitative difference:
 **Experimental Results:**
 
 #### Regime 4.1: $a > b$
-- **LSA**: Converges to **antipodal clusters** ($\mathcal{\hat{R}}_2(t) \to 1$, $\mathcal{\hat{R}}_1(t) \to 0$)
+- **LSA**: Converges to **antipodal clusters** ($\hat{\mathcal{R}}_2(t) \to 1$, $\hat{\mathcal{R}}_1(t) \to 0$)
   - Convergence in ~45 time units
   - Unequal cluster distribution (visible in Gram matrix)
-- **USA**: Converges to **single point** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 1$)
+- **USA**: Converges to **single point** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 1$)
   - Faster convergence than LSA
 
 #### Regime 4.2: $a = b$ (Critical Boundary)
 - **LSA**: Converges to **antipodal clusters** but **extremely slowly**
   - Requires ~200,000 time units (orders of magnitude slower than $a > b$)
-  - $\mathcal{\hat{R}}_2(t) \to 1$ but at marginal convergence rate
+  - $\hat{\mathcal{R}}_2(t) \to 1$ but at marginal convergence rate
 - **USA**: Converges to **single point** (not antipodal like Case 2 boundary)
   - Indicates different stability structure for Hamiltonian vs. symmetric matrices
 
 #### Regime 4.3: $a < b$ (Oscillatory)
-- **LSA**: **Persistent periodic oscillations** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 0$)
+- **LSA**: **Persistent periodic oscillations** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 0$)
   - Gram matrix: no clustering structure
   - Coordinate-wise means $m_l(t)$ oscillate indefinitely
   - Hamiltonian structure produces closed orbits (no convergence)
-- **USA**: Also exhibits **persistent oscillations** ($\mathcal{\hat{R}}_1(t), \mathcal{\hat{R}}_2(t) \to 0$)
+- **USA**: Also exhibits **persistent oscillations** ($\hat{\mathcal{R}}_1(t), \hat{\mathcal{R}}_2(t) \to 0$)
   - Both models agree on non-convergent behavior
   - Oscillation driven by Hamiltonian structure is model-independent
 
@@ -364,7 +375,7 @@ Since $\beta$ appears as a multiplicative factor in the dynamics, rescaling $\be
 
 ### Higher-Dimensional Clustering Direction
 
-For $d > 2$ with Case 1 (Regime 3), the explicit equilibrium formula for $\rho$ is unavailable. Instead, the equilibrium is inferred numerically from the plateau value of $\mathcal{\hat{R}}_2(t)$.
+For $d > 2$ with Case 1 (Regime 3), the explicit equilibrium formula for $\rho$ is unavailable. Instead, the equilibrium is inferred numerically from the plateau value of $\hat{\mathcal{R}}_2(t)$.
 
 ## Reproducibility
 
@@ -388,7 +399,7 @@ streamlit run higher_dim.py
 
 For theoretical background and detailed analysis, see:
 
-**Main Paper**: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)  
+**Main Paper**: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
 
 **Key Sections Implemented**:
 - **Ott-Antonsen Reduction**: Classical technique for mean-field dynamics on spheres
@@ -410,4 +421,3 @@ For theoretical background and detailed analysis, see:
 - **NetworkX**: Graph analysis (if needed for attention patterns)
 - **Streamlit**: Interactive web interface
 - **SymPy**: Symbolic computation for analytical phase portraits
-
